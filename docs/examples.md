@@ -64,18 +64,28 @@ Output:
 | `converted-optional-property-to-nullable` | `inputSchema.properties.amount` | no |
 | `added-additional-properties-false` | `inputSchema.additionalProperties` | no |
 
-And the compile result still carries one warning:
+`openaiProvider.check()` on the same tool reports the schema is not sendable as
+written, and separately what will change at runtime:
+
+```
+error   openai/object-missing-additional-properties  inputSchema.additionalProperties
+error   openai/strict-optional-property              inputSchema.properties.amount
+warning openai/nullable-instead-of-omitted           inputSchema.properties.amount
+```
+
+Both errors are ones compile works around, so `finalizeCompile` drops them from
+the successful compile result. Exactly one diagnostic survives:
 
 ```json
 {
   "severity": "warning",
-  "code": "openai/strict-optional-property",
-  "message": "Optional property `amount` cannot stay optional in OpenAI strict mode. It is emitted as required and nullable, so the model may send `amount: null` where the canonical schema expected the key to be omitted.",
+  "code": "openai/nullable-instead-of-omitted",
+  "message": "After compilation the model may send `amount: null` instead of omitting the property. Treat `null` as \"not supplied\" in the handler for `refund_order`.",
   "path": "inputSchema.properties.amount",
   "compile": {
     "supported": true,
     "lossy": false,
-    "detail": "Emits `amount` as required with `null` added to its type."
+    "detail": "Adds `\"null\"` to the type of `amount`; the key is always present."
   },
   "docsUrl": "https://developers.openai.com/api/docs/guides/function-calling"
 }

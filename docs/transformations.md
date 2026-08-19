@@ -20,9 +20,9 @@ into the compile result.
 |---|---|---|
 | `renamed-input-schema-to-parameters` | `false` | Emits the canonical `inputSchema` as OpenAI's `parameters` field. Always applied. |
 | `enabled-strict-mode` | `false` | Emits `strict: true`. Always applied. See [openai-support.md](./openai-support.md#why-strict-true-always). |
-| `converted-optional-property-to-nullable` | `false` | Adds the property to `required` and adds `"null"` to its type union. The value set gains `null`, but no canonical constraint stops being enforced. **Always accompanied by an `openai/strict-optional-property` warning.** |
+| `converted-optional-property-to-nullable` | `false` | Adds the property to `required` and adds `"null"` to its type union. The value set gains `null`, but no canonical constraint stops being enforced. **Always accompanied by an `openai/nullable-instead-of-omitted` warning that survives into the compile result.** |
 | `added-additional-properties-false` | `false` | Adds `additionalProperties: false` where the canonical schema said nothing. |
-| `closed-open-object` | `false` | Replaces `additionalProperties: true` with `false`. Accompanied by an `openai/additional-properties-true` warning. |
+| `closed-open-object` | `false` | Replaces `additionalProperties: true` with `false`. Accompanied by an `openai/extra-properties-no-longer-accepted` warning. |
 | `dropped-annotation-keyword` | `false` | Drops a keyword that annotates but does not constrain (`title`, `examples`, `$comment`, `$schema`, `$id`, `$anchor`, `deprecated`, `readOnly`, `writeOnly`, `nullable: false`). |
 | `dropped-default-keyword` | `false` | Drops `default`. Accepted values are unchanged; accompanied by an `openai/default-keyword-dropped` warning because the model loses the hint. |
 | `converted-const-to-enum` | `false` | Emits `const: X` as `enum: [X]`, which accepts exactly the same value. |

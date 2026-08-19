@@ -54,10 +54,11 @@ describe('refund_order — the headline case', () => {
     expect(isLossy(result)).toBe(false);
   });
 
-  it('carries at least one warning about the optional property', () => {
+  it('carries exactly one surviving warning, about the optional property', () => {
     const warnings = result.diagnostics.filter((d) => d.severity === 'warning');
-    expect(warnings.length).toBeGreaterThanOrEqual(1);
-    expect(warnings.map((d) => d.code)).toContain('openai/strict-optional-property');
+    expect(result.diagnostics).toHaveLength(1);
+    expect(warnings).toHaveLength(1);
+    expect(warnings.map((d) => d.code)).toContain('openai/nullable-instead-of-omitted');
   });
 
   it('emits `amount` as required and nullable, keeping `minimum`', () => {
@@ -156,7 +157,13 @@ describe('non-lossy transformations', () => {
     expect(result.ok).toBe(true);
     expect(codes(result.transformations)).toContain('closed-open-object');
     expect(lossyCodes(result)).toEqual([]);
-    expect(result.diagnostics.map((d) => d.code)).toContain('openai/additional-properties-true');
+    expect(result.diagnostics.map((d) => d.code)).toContain(
+      'openai/extra-properties-no-longer-accepted',
+    );
+    // The `error` form was worked around by compile, so finalizeCompile drops it.
+    expect(result.diagnostics.map((d) => d.code)).not.toContain(
+      'openai/additional-properties-true',
+    );
   });
 
   it('rewrites `const` to a single-value enum', () => {

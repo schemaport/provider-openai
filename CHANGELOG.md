@@ -14,7 +14,7 @@ Initial release. Rules reviewed against official OpenAI documentation on
 
 - `openaiProvider`, a `SchemaPortProvider` targeting the OpenAI **Responses API**
   function tool (`POST /v1/responses`, `tools[]`) with `strict: true`.
-- `check()` with 25 compatibility rules:
+- `check()` with 27 compatibility rules:
   - Tool identity — `openai/tool-name-invalid-characters`,
     `openai/tool-name-too-long`, `openai/missing-tool-description`.
   - Root schema — `openai/root-schema-not-object`, `openai/root-schema-anyof`.
@@ -22,8 +22,11 @@ Initial release. Rules reviewed against official OpenAI documentation on
     `openai/too-many-enum-values`, `openai/large-enum-too-long`,
     `openai/schema-too-large`.
   - Objects — `openai/strict-optional-property`,
+    `openai/nullable-instead-of-omitted`,
     `openai/object-missing-additional-properties`,
-    `openai/additional-properties-true`, `openai/additional-properties-schema`.
+    `openai/additional-properties-true`,
+    `openai/extra-properties-no-longer-accepted`,
+    `openai/additional-properties-schema`.
   - Keywords — `openai/unsupported-keyword`,
     `openai/undocumented-constraint-keyword`, `openai/unknown-keyword`,
     `openai/unsupported-string-format`, `openai/one-of-converted-to-any-of`,
@@ -53,7 +56,15 @@ Initial release. Rules reviewed against official OpenAI documentation on
   `options.client` is supported as a test seam.
 - Separate diagnostic codes for the two evidence tiers behind a dropped
   constraint, so a keyword OpenAI names as unsupported is distinguishable from
-  one that is merely absent from its supported list.
+  one that is merely absent from its supported list. `docs/probing.md` documents
+  how to settle a tier-2 case against the live API.
+- Paired error/warning diagnostics wherever OpenAI rejects the canonical schema
+  *as written* **and** compilation changes runtime behaviour. The error makes
+  `check` fail CI; the warning survives `finalizeCompile` into the compile
+  result. Applies to `openai/strict-optional-property` +
+  `openai/nullable-instead-of-omitted`, and to
+  `openai/additional-properties-true` +
+  `openai/extra-properties-no-longer-accepted`.
 - Documentation: `docs/openai-support.md`, `docs/rules.md`,
   `docs/transformations.md`, `docs/limitations.md`, `docs/probing.md`,
   `docs/examples.md`.

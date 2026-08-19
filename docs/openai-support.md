@@ -142,6 +142,10 @@ might not be. The diagnostic (`openai/undocumented-constraint-keyword`) states
 plainly that SchemaPort could not confirm the behaviour, rather than asserting
 OpenAI rejects it.
 
+A static rule made under uncertainty is not the end of the story. `schemaport
+probe --targets openai` settles it against the live API — see
+[probing.md](./probing.md#resolving-a-tier-2-drop-with-probe).
+
 **Unknown keywords** — anything not in any of these lists, including vendor
 extensions such as `x-internal-tag` — are dropped and treated as lossy too
 (`openai/unknown-keyword`). SchemaPort cannot tell whether an unfamiliar keyword

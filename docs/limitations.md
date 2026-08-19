@@ -17,6 +17,11 @@ Practical consequence: two of the shared `@schemaport/core` fixtures
 (`create_ticket`, `schedule_job`) need `--allow-lossy` because of this rule
 alone.
 
+**This is resolvable, not permanent.** `schemaport probe --targets openai` with
+a real key answers what OpenAI actually does with your schema today, and
+[probing.md](./probing.md#resolving-a-tier-2-drop-with-probe) explains how to
+read the result and how to feed a correction back into the tier assignment.
+
 ## The optional-property encoding is not self-consistent JSON Schema
 
 OpenAI's documented encoding for an optional enum property is:

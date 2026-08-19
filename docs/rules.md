@@ -1,6 +1,6 @@
 # Compatibility rules
 
-Every rule `check()` implements, with its stable code. All 25 codes are prefixed
+Every rule `check()` implements, with its stable code. All 27 codes are prefixed
 `openai/`, carry a `path` built with `joinPath` and a `docsUrl` pointing at the
 official page the rule came from.
 
@@ -41,20 +41,56 @@ deleting parts of the caller's contract.
 
 | Code | Severity | Compile | Fires when |
 |---|---|---|---|
-| `openai/strict-optional-property` | **warning** | fixes | A property is absent from `required`. Compile makes it required and adds `"null"` to its type. |
+| `openai/strict-optional-property` | error | fixes | A property is absent from `required`. OpenAI strict mode rejects the schema as written. |
+| `openai/nullable-instead-of-omitted` | **warning** | fixes | Paired with the above, at the same path: after compilation the model may send `name: null` instead of omitting the property. |
 | `openai/object-missing-additional-properties` | error | fixes | An object schema does not set `additionalProperties`. Compile adds `false`. |
-| `openai/additional-properties-true` | **warning** | fixes | An object explicitly sets `additionalProperties: true`. Compile closes it. |
+| `openai/additional-properties-true` | error | fixes | An object explicitly sets `additionalProperties: true`. OpenAI strict mode requires `false`. |
+| `openai/extra-properties-no-longer-accepted` | **warning** | fixes | Paired with the above, at the same path: after compilation the model can no longer send the undeclared keys the canonical schema allowed. |
 | `openai/additional-properties-schema` | error | fixes (lossy) | `additionalProperties` is a value schema (an open typed map). Strict mode cannot express it, so the map is erased. |
 
-### Why `openai/strict-optional-property` is a warning, not an error
+### Why optional properties produce two diagnostics
 
-`finalizeCompile` removes `error` diagnostics that compile worked around. If
-this rule were an `error`, a successful compile would report nothing — but the
-compiled schema genuinely behaves differently at runtime: the model may emit
-`{"amount": null}` where the canonical schema expected `amount` to be omitted.
-The contract requires that behaviour change to survive into the compile result,
-so the rule is a `warning`. The same reasoning applies to
-`openai/additional-properties-true`.
+There are two independent, both-true facts, and collapsing them into one
+diagnostic loses whichever one you drop.
+
+**Fact 1 — the schema as written is not sendable.** OpenAI strict mode rejects a
+property that is not listed in `required`. `check()` must report that as an
+`error`, or a CI run gated on errors (`--fail-on error`) would exit 0 for a
+schema that cannot be sent to OpenAI at all. That is
+`openai/strict-optional-property`. `finalizeCompile` drops it from a *successful*
+compile result, which is correct: there the
+`converted-optional-property-to-nullable` transformation is the record.
+
+**Fact 2 — the compiled schema behaves differently at runtime.** The model may
+emit `{"amount": null}` where the canonical schema expected `amount` to be
+omitted, so your handler has to treat `null` as "not supplied". That has to
+survive into the compile result and the manifest, so it is a separate
+`warning`: `openai/nullable-instead-of-omitted`, at the same path.
+
+`check()` output for the PRD's headline tool reads:
+
+```
+OpenAI
+✗ Optional property `amount` is not allowed in OpenAI strict mode.
+  Path: inputSchema.properties.amount
+  SchemaPort can compile this as required and nullable.
+⚠ After compilation the model may send `amount: null` instead of omitting it.
+  Path: inputSchema.properties.amount
+```
+
+The warning is emitted only for properties the conversion actually touches — a
+property that was already in `required` changes nothing at runtime and is
+silent.
+
+`openai/additional-properties-true` / `openai/extra-properties-no-longer-accepted`
+are split on exactly the same principle: strict mode forbids `true` (error), and
+closing the object stops the model sending undeclared keys (warning).
+
+Rules where only the runtime fact is certain stay single warnings.
+`openai/default-keyword-dropped`, `openai/legacy-definitions-keyword` and
+`openai/nullable-keyword-converted` are not promoted, because OpenAI does not
+document whether it *rejects* `default`, `definitions` or `nullable` — claiming
+an error there would assert something unverified.
 
 ## Keywords
 

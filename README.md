@@ -51,7 +51,7 @@ await client.responses.create({ model, input, tools });
 
 ## What it does
 
-- **`check(tool)`** — 25 compatibility rules, each with a stable `openai/…` code,
+- **`check(tool)`** — 27 compatibility rules, each with a stable `openai/…` code,
   a precise path, a documentation URL and an honest statement of what `compile()`
   will do about it. See [docs/rules.md](./docs/rules.md).
 - **`compile(tool, options)`** — emits the Responses API `FunctionTool` shape
@@ -81,9 +81,11 @@ openaiProvider.compile(tool, { allowLossy: true }); // ok: true, you've been tol
 ```
 
 Narrowing — closing an object, making an optional property required-and-nullable
-— is not lossy, but where it changes what the model emits at runtime `check()`
-raises a **warning that survives into the compile result**. "Compiles with zero
-warnings" is only ever printed when OpenAI genuinely preserves your contract.
+— is not lossy, but it is never silent. Where OpenAI rejects the canonical schema
+*as written*, `check()` raises an **error** so a CI run gated on errors fails.
+Where compilation changes what the model emits *at runtime*, a separate
+**warning survives into the compile result**. "Compiles with zero warnings" is
+only ever printed when OpenAI genuinely preserves your contract.
 
 ## Honesty about uncertainty
 
@@ -94,6 +96,10 @@ confirmed rather than asserting OpenAI rejects them. The two evidence tiers have
 separate diagnostic codes so you can tell them apart:
 `openai/unsupported-keyword` (OpenAI names it as unsupported) versus
 `openai/undocumented-constraint-keyword` (merely absent from the supported list).
+
+And an uncertain static rule is not the last word: `schemaport probe --targets
+openai` with a real key answers what OpenAI does with your schema today. See
+[docs/probing.md](./docs/probing.md#resolving-a-tier-2-drop-with-probe).
 
 ## Probing
 

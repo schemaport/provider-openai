@@ -44,7 +44,7 @@ describe('diagnostic conventions', () => {
     }
   });
 
-  it('implements exactly the 25 codes docs/rules.md documents', () => {
+  it('implements exactly the 27 codes docs/rules.md documents', () => {
     // Guards the counts in README.md and docs/rules.md against drift.
     const documented = [
       'openai/additional-properties-schema',
@@ -53,9 +53,11 @@ describe('diagnostic conventions', () => {
       'openai/conflicting-definitions-keywords',
       'openai/const-converted-to-enum',
       'openai/default-keyword-dropped',
+      'openai/extra-properties-no-longer-accepted',
       'openai/large-enum-too-long',
       'openai/legacy-definitions-keyword',
       'openai/missing-tool-description',
+      'openai/nullable-instead-of-omitted',
       'openai/nullable-keyword-converted',
       'openai/object-missing-additional-properties',
       'openai/one-of-converted-to-any-of',
@@ -73,8 +75,8 @@ describe('diagnostic conventions', () => {
       'openai/unsupported-keyword',
       'openai/unsupported-string-format',
     ];
-    expect(documented).toHaveLength(25);
-    expect(new Set(documented).size).toBe(25);
+    expect(documented).toHaveLength(27);
+    expect(new Set(documented).size).toBe(27);
   });
 
   it('is stable: the same tool always produces the same diagnostics', () => {
@@ -129,20 +131,47 @@ describe('root schema rules', () => {
 });
 
 describe('object rules', () => {
-  it('openai/strict-optional-property is a warning, so it survives compile', () => {
+  it('openai/strict-optional-property is an error: OpenAI rejects the schema as written', () => {
     const hit = find(checkOpenAI(refundOrderTool), 'openai/strict-optional-property');
-    expect(hit.severity).toBe('warning');
+    expect(hit.severity).toBe('error');
     expect(hit.path).toBe('inputSchema.properties.amount');
     expect(hit.compile).toEqual({
       supported: true,
       lossy: false,
-      detail: 'Emits `amount` as required with `null` added to its type.',
+      detail: 'Emits `amount` as required and nullable.',
     });
+  });
+
+  it('openai/nullable-instead-of-omitted is the surviving runtime warning', () => {
+    const hit = find(checkOpenAI(refundOrderTool), 'openai/nullable-instead-of-omitted');
+    expect(hit.severity).toBe('warning');
+    expect(hit.path).toBe('inputSchema.properties.amount');
+    expect(hit.compile.lossy).toBe(false);
+    expect(hit.message).toContain('amount: null');
+  });
+
+  it('pairs the two optional-property diagnostics, error before warning', () => {
+    const pair = checkOpenAI(refundOrderTool).filter(
+      (d) => d.path === 'inputSchema.properties.amount',
+    );
+    expect(pair.map((d) => [d.severity, d.code])).toEqual([
+      ['error', 'openai/strict-optional-property'],
+      ['warning', 'openai/nullable-instead-of-omitted'],
+    ]);
+  });
+
+  it('emits the runtime warning only for properties that were actually optional', () => {
+    const warned = checkOpenAI(refundOrderTool)
+      .filter((d) => d.code === 'openai/nullable-instead-of-omitted')
+      .map((d) => d.path);
+    expect(warned).toEqual(['inputSchema.properties.amount']);
+    // `orderId` was already required, so nothing about it changes at runtime.
+    expect(warned).not.toContain('inputSchema.properties.orderId');
   });
 
   it('reports optional properties nested inside array items', () => {
     const paths = checkOpenAI(nestedTool)
-      .filter((d) => d.code === 'openai/strict-optional-property')
+      .filter((d) => d.code === 'openai/nullable-instead-of-omitted')
       .map((d) => d.path);
     expect(paths).toContain('inputSchema.properties.history.items.properties.note');
     expect(paths).toContain('inputSchema.properties.requester.properties.name');
@@ -158,8 +187,14 @@ describe('object rules', () => {
     });
   });
 
-  it('openai/additional-properties-true', () => {
+  it('openai/additional-properties-true is an error: strict mode forbids `true`', () => {
     const hit = find(checkOpenAI(openObjectTool), 'openai/additional-properties-true');
+    expect(hit.severity).toBe('error');
+    expect(hit.compile.lossy).toBe(false);
+  });
+
+  it('openai/extra-properties-no-longer-accepted is the surviving runtime warning', () => {
+    const hit = find(checkOpenAI(openObjectTool), 'openai/extra-properties-no-longer-accepted');
     expect(hit.severity).toBe('warning');
     expect(hit.compile.lossy).toBe(false);
   });

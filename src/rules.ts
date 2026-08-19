@@ -207,9 +207,21 @@ export function isObjectSchema(schema: JsonSchema): boolean {
  * the property required and unions its type with `null`, which is the encoding
  * OpenAI documents for optional fields.
  *
- * This is reported as a **warning**, not an error: compile always fixes it, but
- * it changes what the model emits at runtime — `{"amount": null}` instead of
- * omitting `amount` — and the caller needs to see that on a successful compile.
+ * This produces **two** diagnostics per optional property, because there are
+ * two independent facts to report:
+ *
+ *  - `openai/strict-optional-property` (**error**) — the canonical schema *as
+ *    written* is not acceptable to OpenAI strict mode. `check` must say so, or
+ *    a CI run gated on errors would pass a schema that cannot be sent.
+ *    `finalizeCompile` drops it from a successful compile result, which is
+ *    right: there the `converted-optional-property-to-nullable` transformation
+ *    is the record of what happened.
+ *  - `openai/nullable-instead-of-omitted` (**warning**) — after compilation the
+ *    model may send `null` where the canonical schema expected the key to be
+ *    omitted. That is a runtime behaviour change and it must survive into the
+ *    compile result and the manifest.
+ *
+ * The warning is emitted only for properties the conversion actually touches.
  */
 export function checkOptionalProperties(
   toolName: string,
@@ -222,17 +234,26 @@ export function checkOptionalProperties(
   const out: Diagnostic[] = [];
   for (const name of Object.keys(properties)) {
     if (required.includes(name)) continue;
+    const at = joinPath(path, 'properties', name);
     out.push(
       make({
         toolName,
-        severity: 'warning',
+        severity: 'error',
         code: 'openai/strict-optional-property',
+        message: `Optional property \`${name}\` is not allowed in OpenAI strict mode; every property must be listed in \`required\`.`,
+        path: at,
+        compile: compilable(`Emits \`${name}\` as required and nullable.`),
+        docsUrl: DOC_FUNCTION_CALLING,
+      }),
+      make({
+        toolName,
+        severity: 'warning',
+        code: 'openai/nullable-instead-of-omitted',
         message:
-          `Optional property \`${name}\` cannot stay optional in OpenAI strict mode. ` +
-          'It is emitted as required and nullable, so the model may send ' +
-          `\`${name}: null\` where the canonical schema expected the key to be omitted.`,
-        path: joinPath(path, 'properties', name),
-        compile: compilable(`Emits \`${name}\` as required with \`null\` added to its type.`),
+          `After compilation the model may send \`${name}: null\` instead of omitting the ` +
+          `property. Treat \`null\` as "not supplied" in the handler for \`${toolName}\`.`,
+        path: at,
+        compile: compilable(`Adds \`"null"\` to the type of \`${name}\`; the key is always present.`),
         docsUrl: DOC_FUNCTION_CALLING,
       }),
     );
@@ -276,16 +297,29 @@ export function checkAdditionalProperties(
   }
 
   if (value === true) {
+    // Two facts again: OpenAI rejects `true` outright, and closing the object
+    // changes what the model may emit. See `checkOptionalProperties`.
     return [
       make({
         toolName,
-        severity: 'warning',
+        severity: 'error',
         code: 'openai/additional-properties-true',
         message:
-          'This object explicitly allows extra properties, which OpenAI strict mode forbids. ' +
-          'The compiled schema is closed, so the model can no longer send undeclared keys.',
+          'This object sets `additionalProperties: true`, which OpenAI strict mode forbids; ' +
+          'it must be `false`.',
         path: at,
         compile: compilable('Replaces `additionalProperties: true` with `false`.'),
+        docsUrl: DOC_STRUCTURED_OUTPUTS,
+      }),
+      make({
+        toolName,
+        severity: 'warning',
+        code: 'openai/extra-properties-no-longer-accepted',
+        message:
+          'After compilation this object is closed, so the model can no longer send the ' +
+          'undeclared keys the canonical schema explicitly allowed.',
+        path: at,
+        compile: compilable('Emits `additionalProperties: false`; undeclared keys are rejected.'),
         docsUrl: DOC_STRUCTURED_OUTPUTS,
       }),
     ];
