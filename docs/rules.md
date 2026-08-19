@@ -1,6 +1,6 @@
 # Compatibility rules
 
-Every rule `check()` implements, with its stable code. All 24 codes are prefixed
+Every rule `check()` implements, with its stable code. All 25 codes are prefixed
 `openai/`, carry a `path` built with `joinPath` and a `docsUrl` pointing at the
 official page the rule came from.
 
@@ -60,12 +60,13 @@ so the rule is a `warning`. The same reasoning applies to
 
 | Code | Severity | Compile | Fires when |
 |---|---|---|---|
-| `openai/unsupported-keyword` | error | fixes (lossy) | A keyword OpenAI **names** as unsupported: `allOf`, `not`, `dependentRequired`, `dependentSchemas`, `if`, `then`, `else`. Also fires when both `definitions` and `$defs` are present, since SchemaPort will not merge them. |
+| `openai/unsupported-keyword` | error | fixes (lossy) | A keyword OpenAI **names** as unsupported: `allOf`, `not`, `dependentRequired`, `dependentSchemas`, `if`, `then`, `else`. |
+| `openai/conflicting-definitions-keywords` | error | fixes (lossy) | A schema carries both `definitions` and `$defs`. This is not an OpenAI restriction — SchemaPort refuses to merge the two maps, so `definitions` is dropped and any `#/definitions/...` reference will dangle. |
 | `openai/undocumented-constraint-keyword` | error | fixes (lossy) | A constraining keyword absent from OpenAI's supported list but not named as unsupported: `minLength`, `maxLength`, `minProperties`, `maxProperties`, `patternProperties`, `propertyNames`, `uniqueItems`, `prefixItems`, `contains`, `minContains`, `maxContains`, `unevaluatedProperties`, `unevaluatedItems`. The message says explicitly that the behaviour is unconfirmed — see [openai-support.md](./openai-support.md#two-tiers-of-unsupported). |
 | `openai/unknown-keyword` | error | fixes (lossy) | A keyword SchemaPort does not recognise at all, such as a vendor extension. Treated as constraining, because assuming otherwise would be the unsafe guess. |
 | `openai/unsupported-string-format` | error | fixes (lossy) | `format` is set to a value outside OpenAI's list of nine supported formats. |
 | `openai/one-of-converted-to-any-of` | error | fixes (lossy) | `oneOf` is used. OpenAI supports `anyOf` only, and `anyOf` accepts values matching more than one branch. |
-| `openai/annotation-keyword-dropped` | info | fixes | A non-constraining annotation is dropped: `title`, `examples`, `$comment`, `$schema`, `$id`, `$anchor`, `deprecated`, `readOnly`, `writeOnly`, or `nullable: false`. |
+| `openai/annotation-keyword-dropped` | info | fixes | A non-constraining annotation is dropped: `title`, `examples`, `$comment`, `$schema`, `$id`, `$anchor`, `deprecated`, `readOnly`, `writeOnly`. Also fires for `nullable: false`, which is equally decorative. |
 | `openai/default-keyword-dropped` | **warning** | fixes | `default` is dropped. Nothing about accepted values changes, but the model no longer sees the default and will pick a value itself. |
 | `openai/const-converted-to-enum` | info | fixes | `const` is emitted as a single-value `enum`, which accepts exactly the same value. |
 | `openai/legacy-definitions-keyword` | **warning** | fixes | The draft-07 `definitions` keyword is used. Compile renames it to `$defs` and repoints `#/definitions/...` references. |
@@ -80,3 +81,9 @@ descend into `allOf`, `not`, `prefixItems`, `patternProperties`,
 slots are dropped wholesale and are already reported at their parent. Reporting
 rules about the interior of a branch that will not exist in the output would be
 noise.
+
+The **size-limit rules walk differently**, and deliberately so. `measureSchema`
+descends into `allOf`, `prefixItems`, `not` and a schema-valued
+`additionalProperties` as well, because OpenAI parses the schema you send before
+it decides anything about it — a schema that busts the depth or property budget
+does so on what was submitted, not on what SchemaPort would have kept.

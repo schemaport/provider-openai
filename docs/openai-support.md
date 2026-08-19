@@ -104,7 +104,9 @@ object or collapsing a root union would change the tool's meaning.
 
 Depth is counted with the root schema as level 1, descending through
 `properties`, `items`, `anyOf`/`oneOf`/`allOf`/`prefixItems`, `$defs`,
-`definitions`, `not` and a schema-valued `additionalProperties`.
+`definitions`, `not` and a schema-valued `additionalProperties` — the size
+rules measure the schema as submitted, which is a wider walk than the one the
+compatibility rules use (see [rules.md](./rules.md#where-check-does-not-descend)).
 
 ### Tool name
 

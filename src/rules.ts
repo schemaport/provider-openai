@@ -445,7 +445,7 @@ function checkRewrittenKeyword(
           make({
             toolName,
             severity: 'error',
-            code: 'openai/unsupported-keyword',
+            code: 'openai/conflicting-definitions-keywords',
             message:
               'Both `definitions` and `$defs` are present. OpenAI documents `$defs` only, and ' +
               'SchemaPort will not merge the two, so `definitions` is dropped.',

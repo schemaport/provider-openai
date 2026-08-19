@@ -54,7 +54,9 @@ If you need a free-form object, strict mode is not going to give you one.
   rewritten — a `$ref` reaching a nested `definitions` map by some other path,
   or an external `$ref` to another document, is left alone and will not resolve.
 - If a schema has both `definitions` and `$defs`, SchemaPort refuses to merge
-  them: `definitions` is dropped as a lossy transformation.
+  them: `definitions` is dropped as a lossy transformation
+  (`openai/conflicting-definitions-keywords`). This is a SchemaPort limitation,
+  not an OpenAI restriction.
 - Probing a schema containing `$ref` will report that the returned arguments
   could not be verified — `validateValue` in `@schemaport/core` does not resolve
   references.

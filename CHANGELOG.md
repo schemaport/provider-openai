@@ -14,7 +14,7 @@ Initial release. Rules reviewed against official OpenAI documentation on
 
 - `openaiProvider`, a `SchemaPortProvider` targeting the OpenAI **Responses API**
   function tool (`POST /v1/responses`, `tools[]`) with `strict: true`.
-- `check()` with 24 compatibility rules:
+- `check()` with 25 compatibility rules:
   - Tool identity — `openai/tool-name-invalid-characters`,
     `openai/tool-name-too-long`, `openai/missing-tool-description`.
   - Root schema — `openai/root-schema-not-object`, `openai/root-schema-anyof`.
@@ -29,6 +29,7 @@ Initial release. Rules reviewed against official OpenAI documentation on
     `openai/unsupported-string-format`, `openai/one-of-converted-to-any-of`,
     `openai/annotation-keyword-dropped`, `openai/default-keyword-dropped`,
     `openai/const-converted-to-enum`, `openai/legacy-definitions-keyword`,
+    `openai/conflicting-definitions-keywords`,
     `openai/nullable-keyword-converted`.
 - `compile()` producing a ready-to-send `FunctionTool`, built from an allowlist
   of documented keywords so no unverified keyword reaches the API. Deterministic:
@@ -41,7 +42,7 @@ Initial release. Rules reviewed against official OpenAI documentation on
   `dropped-annotation-keyword`, `dropped-default-keyword`,
   `converted-const-to-enum`, `renamed-definitions-to-defs`,
   `rewrote-definitions-reference`, `converted-nullable-to-type-union`.
-  Lossy: `dropped-unsupported-keyword`,
+  Lossy: `dropped-unsupported-keyword`, `dropped-conflicting-definitions`,
   `dropped-undocumented-constraint-keyword`, `dropped-unknown-keyword`,
   `dropped-unsupported-format`, `dropped-additional-properties-schema`,
   `converted-one-of-to-any-of`.

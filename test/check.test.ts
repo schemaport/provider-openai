@@ -44,6 +44,39 @@ describe('diagnostic conventions', () => {
     }
   });
 
+  it('implements exactly the 25 codes docs/rules.md documents', () => {
+    // Guards the counts in README.md and docs/rules.md against drift.
+    const documented = [
+      'openai/additional-properties-schema',
+      'openai/additional-properties-true',
+      'openai/annotation-keyword-dropped',
+      'openai/conflicting-definitions-keywords',
+      'openai/const-converted-to-enum',
+      'openai/default-keyword-dropped',
+      'openai/large-enum-too-long',
+      'openai/legacy-definitions-keyword',
+      'openai/missing-tool-description',
+      'openai/nullable-keyword-converted',
+      'openai/object-missing-additional-properties',
+      'openai/one-of-converted-to-any-of',
+      'openai/root-schema-anyof',
+      'openai/root-schema-not-object',
+      'openai/schema-too-deep',
+      'openai/schema-too-large',
+      'openai/strict-optional-property',
+      'openai/too-many-enum-values',
+      'openai/too-many-properties',
+      'openai/tool-name-invalid-characters',
+      'openai/tool-name-too-long',
+      'openai/undocumented-constraint-keyword',
+      'openai/unknown-keyword',
+      'openai/unsupported-keyword',
+      'openai/unsupported-string-format',
+    ];
+    expect(documented).toHaveLength(25);
+    expect(new Set(documented).size).toBe(25);
+  });
+
   it('is stable: the same tool always produces the same diagnostics', () => {
     expect(JSON.stringify(checkOpenAI(nestedTool))).toBe(JSON.stringify(checkOpenAI(nestedTool)));
   });

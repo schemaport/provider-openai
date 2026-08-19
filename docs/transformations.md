@@ -34,7 +34,8 @@ into the compile result.
 
 | Code | `lossy` | What it does and what is lost |
 |---|---|---|
-| `dropped-unsupported-keyword` | **`true`** | Drops a keyword OpenAI names as unsupported (`allOf`, `not`, `dependentRequired`, `dependentSchemas`, `if`, `then`, `else`), or a `definitions` map that collides with an existing `$defs`. The constraint is no longer enforced anywhere. |
+| `dropped-unsupported-keyword` | **`true`** | Drops a keyword OpenAI names as unsupported (`allOf`, `not`, `dependentRequired`, `dependentSchemas`, `if`, `then`, `else`). The constraint is no longer enforced anywhere. |
+| `dropped-conflicting-definitions` | **`true`** | Drops a `definitions` map that collides with an existing `$defs`. SchemaPort will not merge them, so any `#/definitions/...` reference is left dangling. |
 | `dropped-undocumented-constraint-keyword` | **`true`** | Drops a constraining keyword absent from OpenAI's supported list (`minLength`, `maxLength`, `uniqueItems`, `prefixItems`, `minProperties`, `maxProperties`, `patternProperties`, `propertyNames`, `contains`, `minContains`, `maxContains`, `unevaluatedProperties`, `unevaluatedItems`). SchemaPort could not confirm whether OpenAI would have enforced it, and refuses to emit it unverified. |
 | `dropped-unknown-keyword` | **`true`** | Drops a keyword SchemaPort does not recognise. Classified lossy because assuming an unknown keyword is decorative would be the unsafe guess. |
 | `dropped-unsupported-format` | **`true`** | Drops a `format` value outside OpenAI's supported nine. `format: "uri"` was load-bearing; after the drop any string is accepted. |

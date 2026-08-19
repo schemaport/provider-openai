@@ -262,7 +262,7 @@ function rewriteKeyword(
       if (isPlainObject(schema['$defs'])) {
         record(
           ctx,
-          'dropped-unsupported-keyword',
+          'dropped-conflicting-definitions',
           at,
           'Dropped `definitions`; `$defs` is already present and SchemaPort will not merge the two.',
           true,
