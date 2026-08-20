@@ -202,3 +202,74 @@ export function manyPropertiesTool(count: number): CanonicalTool {
     inputSchema: objectOf(properties, Object.keys(properties)),
   };
 }
+
+/**
+ * `false` in a subschema slot: accepts nothing, which OpenAI cannot express.
+ * `core`'s `validateCanonicalTool` rejects this, so it can only arrive through
+ * a direct adapter call — the case these fixtures exist to pin down.
+ */
+export const falseSubschemaTool = {
+  name: 'false_subschema',
+  description: 'Has a `false` subschema',
+  inputSchema: {
+    type: 'object',
+    properties: { a: false, b: { type: 'string' } },
+    required: ['a', 'b'],
+    additionalProperties: false,
+  },
+} as unknown as CanonicalTool;
+
+/** `true` in a subschema slot: equivalent to `{}`, so nothing is lost. */
+export const trueSubschemaTool = {
+  name: 'true_subschema',
+  description: 'Has a `true` subschema',
+  inputSchema: {
+    type: 'object',
+    properties: { a: true },
+    required: ['a'],
+    additionalProperties: false,
+  },
+} as unknown as CanonicalTool;
+
+/** `items: false` — previously dropped the `items` key entirely. */
+export const falseItemsTool = {
+  name: 'false_items',
+  description: 'Has `items: false`',
+  inputSchema: {
+    type: 'object',
+    properties: { xs: { type: 'array', items: false } },
+    required: ['xs'],
+    additionalProperties: false,
+  },
+} as unknown as CanonicalTool;
+
+/** A boolean nested inside a slot compile drops wholesale. */
+export const falseInsideAllOfTool = {
+  name: 'false_in_allof',
+  description: 'Has `allOf: [false]`',
+  inputSchema: {
+    type: 'object',
+    properties: { a: { allOf: [false] } },
+    required: ['a'],
+    additionalProperties: false,
+  },
+} as unknown as CanonicalTool;
+
+/** A subschema slot holding something that is not a schema at all. */
+export const nonSchemaSubschemaTool = {
+  name: 'non_schema',
+  description: 'Has a string where a schema belongs',
+  inputSchema: {
+    type: 'object',
+    properties: { a: 'nope' },
+    required: ['a'],
+    additionalProperties: false,
+  },
+} as unknown as CanonicalTool;
+
+/** A closed object using `additionalProperties: false`, which must NOT be flagged. */
+export const closedObjectTool: CanonicalTool = {
+  name: 'closed_object',
+  description: 'Uses additionalProperties: false',
+  inputSchema: objectOf({ a: { type: 'string' } }, ['a']),
+};

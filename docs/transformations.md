@@ -29,6 +29,7 @@ into the compile result.
 | `renamed-definitions-to-defs` | `false` | Renames draft-07 `definitions` to `$defs`. |
 | `rewrote-definitions-reference` | `false` | Repoints a `#/definitions/...` `$ref` at `#/$defs/...`. |
 | `converted-nullable-to-type-union` | `false` | Replaces OpenAPI 3.0 `nullable: true` with `"null"` in the type union. |
+| `normalized-true-subschema` | `false` | Emits `{}` in place of a `true` subschema. `true` and `{}` accept exactly the same values. |
 
 ## Lossy
 
@@ -41,6 +42,8 @@ into the compile result.
 | `dropped-unsupported-format` | **`true`** | Drops a `format` value outside OpenAI's supported nine. `format: "uri"` was load-bearing; after the drop any string is accepted. |
 | `dropped-additional-properties-schema` | **`true`** | Replaces an `additionalProperties` value schema with `false`. An open typed map such as `{ "additionalProperties": { "type": "string" } }` becomes an object that accepts no extra keys at all — the map is gone, not just untyped. |
 | `converted-one-of-to-any-of` | **`true`** | Emits `oneOf` branches as `anyOf`. Values matching more than one branch are now accepted; `oneOf` rejected them. |
+| `widened-false-subschema` | **`true`** | Emits `{}` in place of a `false` subschema. `false` accepts nothing and `{}` accepts everything, so this is the widest weakening SchemaPort can produce. Always refused without `allowLossy`. |
+| `widened-invalid-subschema` | **`true`** | Emits `{}` in place of a value that is not a schema at all. Treated exactly like `false` rather than being silently normalised. |
 
 ## Determinism
 

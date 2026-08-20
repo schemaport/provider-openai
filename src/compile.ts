@@ -94,6 +94,64 @@ function withNull(out: Record<string, unknown>): Record<string, unknown> {
   return out;
 }
 
+/**
+ * Transform one schema-valued child.
+ *
+ * JSON Schema permits `true`/`false` (and, in malformed documents, arbitrary
+ * values) where a schema is expected. OpenAI's subset does not, so something
+ * concrete has to be emitted and `{}` is the only option.
+ *
+ * `true` -> `{}` accepts the same values, so nothing is lost. `false` -> `{}`
+ * turns "accept nothing" into "accept anything", which is the widest possible
+ * weakening of a constraint and is recorded `lossy: true` so `finalizeCompile`
+ * refuses it without `allowLossy`. Anything else is treated the same way.
+ *
+ * `validateCanonicalTool` in `@schemaport/core` already rejects boolean
+ * subschemas, so the CLI never gets here. This is defence in depth for callers
+ * using the adapter directly.
+ */
+function transformChild(value: unknown, path: string, ctx: Context): Record<string, unknown> {
+  const sub = asSchema(value);
+  if (sub) return transformSchema(sub, path, ctx);
+
+  if (value === true) {
+    record(
+      ctx,
+      'normalized-true-subschema',
+      path,
+      'Emitted `{}` in place of the `true` subschema; both accept exactly the same values.',
+      false,
+    );
+    return {};
+  }
+
+  if (value === false) {
+    record(
+      ctx,
+      'widened-false-subschema',
+      path,
+      'Emitted `{}` in place of the `false` subschema. OpenAI cannot express "accept nothing", so this now accepts any value.',
+      true,
+    );
+    return {};
+  }
+
+  record(
+    ctx,
+    'widened-invalid-subschema',
+    path,
+    `Emitted \`{}\` in place of a non-schema value of type ${describeValue(value)}; this accepts any value.`,
+    true,
+  );
+  return {};
+}
+
+function describeValue(value: unknown): string {
+  if (value === null) return 'null';
+  if (Array.isArray(value)) return 'array';
+  return typeof value;
+}
+
 /* -------------------------------------------------------------------------- */
 /* Schema transformation                                                       */
 /* -------------------------------------------------------------------------- */
@@ -167,23 +225,21 @@ function copySupported(
       if (!isPlainObject(value)) return;
       const map: Record<string, unknown> = {};
       for (const [key, child] of Object.entries(value)) {
-        const sub = asSchema(child);
-        map[key] = sub ? transformSchema(sub, joinPath(path, keyword, key), ctx) : {};
+        map[key] = transformChild(child, joinPath(path, keyword, key), ctx);
       }
       out[keyword] = map;
       return;
     }
     case 'items': {
-      const sub = asSchema(value);
-      if (sub) out['items'] = transformSchema(sub, joinPath(path, 'items'), ctx);
+      // Never skip: dropping `items` outright would let the array accept anything.
+      out['items'] = transformChild(value, joinPath(path, 'items'), ctx);
       return;
     }
     case 'anyOf': {
       if (!Array.isArray(value)) return;
-      out['anyOf'] = value.map((branch, index) => {
-        const sub = asSchema(branch);
-        return sub ? transformSchema(sub, joinPath(path, 'anyOf', index), ctx) : {};
-      });
+      out['anyOf'] = value.map((branch, index) =>
+        transformChild(branch, joinPath(path, 'anyOf', index), ctx),
+      );
       return;
     }
     case 'format': {
@@ -250,10 +306,9 @@ function rewriteKeyword(
         'Emitted `oneOf` branches as `anyOf`; values matching more than one branch are now accepted.',
         true,
       );
-      out['anyOf'] = value.map((branch, index) => {
-        const sub = asSchema(branch);
-        return sub ? transformSchema(sub, joinPath(path, 'oneOf', index), ctx) : {};
-      });
+      out['anyOf'] = value.map((branch, index) =>
+        transformChild(branch, joinPath(path, 'oneOf', index), ctx),
+      );
       return;
     }
 
@@ -272,8 +327,7 @@ function rewriteKeyword(
       record(ctx, 'renamed-definitions-to-defs', at, 'Renamed `definitions` to `$defs`.', false);
       const map: Record<string, unknown> = {};
       for (const [key, child] of Object.entries(value)) {
-        const sub = asSchema(child);
-        map[key] = sub ? transformSchema(sub, joinPath(path, 'definitions', key), ctx) : {};
+        map[key] = transformChild(child, joinPath(path, 'definitions', key), ctx);
       }
       out['$defs'] = map;
       return;

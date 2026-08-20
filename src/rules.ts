@@ -700,6 +700,123 @@ export function checkBudget(tool: CanonicalTool): Diagnostic[] {
   return out;
 }
 
+
+/* -------------------------------------------------------------------------- */
+/* Boolean and non-schema subschemas                                           */
+/* -------------------------------------------------------------------------- */
+
+/** Slots whose values are schemas. `additionalProperties` is deliberately absent:
+ *  a boolean is its normal form there, and `checkAdditionalProperties` owns it. */
+const SCHEMA_MAP_SLOTS = ['properties', '$defs', 'definitions'] as const;
+const SCHEMA_LIST_SLOTS = ['anyOf', 'oneOf', 'allOf', 'prefixItems'] as const;
+const SCHEMA_SINGLE_SLOTS = ['items', 'not'] as const;
+
+/** Slots compile drops wholesale, so their interior never reaches the output. */
+const DROPPED_SLOTS: readonly string[] = ['allOf', 'not', 'prefixItems'];
+
+function describeValue(value: unknown): string {
+  if (value === null) return 'null';
+  if (Array.isArray(value)) return 'array';
+  return typeof value;
+}
+
+/**
+ * JSON Schema allows `true` or `false` in place of a subschema. OpenAI's
+ * supported subset does not, so compile has to materialise something concrete.
+ *
+ * `false` means "accept nothing". The closest OpenAI can express is `{}`, which
+ * accepts *everything* — the widest possible weakening of a constraint. That is
+ * an error backed by a `lossy: true` transformation, so `finalizeCompile`
+ * refuses it unless the caller passes `allowLossy`.
+ *
+ * `true` also compiles to `{}`, but the two accept exactly the same values, so
+ * it costs nothing and is only worth an `info`.
+ *
+ * Any other non-schema value (a string, a number, `null`) is not valid JSON
+ * Schema at all; it is treated like `false` — replaced with `{}` and reported
+ * lossy — rather than being silently normalised away.
+ *
+ * **Defence in depth.** `validateCanonicalTool` in `@schemaport/core` rejects
+ * boolean subschemas outright, so the CLI never reaches this code. The adapter
+ * is a public API that can be called directly, and SchemaPort's promise never
+ * to weaken a schema silently has to hold there too.
+ */
+export function checkSubschemaSlots(tool: CanonicalTool): Diagnostic[] {
+  const out: Diagnostic[] = [];
+
+  const inspect = (value: unknown, path: string, dropped: boolean): void => {
+    const child = asSchema(value);
+    if (child) {
+      descend(child, path, dropped);
+      return;
+    }
+
+    if (value === true) {
+      out.push(
+        make({
+          toolName: tool.name,
+          severity: 'info',
+          code: 'openai/boolean-subschema',
+          message:
+            'OpenAI does not accept `true` in place of a subschema. It is emitted as `{}`, ' +
+            'which accepts exactly the same values.',
+          path,
+          compile: compilable('Emits `{}` in place of `true`.'),
+          docsUrl: DOC_STRUCTURED_OUTPUTS,
+        }),
+      );
+      return;
+    }
+
+    const isFalse = value === false;
+    out.push(
+      make({
+        toolName: tool.name,
+        severity: 'error',
+        code: isFalse ? 'openai/boolean-subschema' : 'openai/non-schema-subschema',
+        message: isFalse
+          ? 'A `false` subschema accepts nothing, and OpenAI has no way to express that. ' +
+            'Compiling it produces `{}`, which accepts ANY value — the widest possible ' +
+            'weakening of this constraint.'
+          : `A subschema slot holds a non-schema value of type ${describeValue(value)}. ` +
+            'Compiling it produces `{}`, which accepts ANY value.',
+        path,
+        compile: compilableLossy(
+          dropped
+            ? 'Refused unless --allow-lossy: the enclosing keyword is dropped, so nothing constrains this value.'
+            : 'Emits `{}`, which accepts any value.',
+        ),
+        docsUrl: DOC_STRUCTURED_OUTPUTS,
+      }),
+    );
+  };
+
+  const descend = (schema: JsonSchema, path: string, dropped: boolean): void => {
+    for (const keyword of SCHEMA_MAP_SLOTS) {
+      const map = schema[keyword];
+      if (!isPlainObject(map)) continue;
+      for (const [key, value] of Object.entries(map)) {
+        inspect(value, joinPath(path, keyword, key), dropped);
+      }
+    }
+    for (const keyword of SCHEMA_LIST_SLOTS) {
+      const list = schema[keyword];
+      if (!Array.isArray(list)) continue;
+      const nowDropped = dropped || DROPPED_SLOTS.includes(keyword);
+      list.forEach((value, index) => {
+        inspect(value, joinPath(path, keyword, index), nowDropped);
+      });
+    }
+    for (const keyword of SCHEMA_SINGLE_SLOTS) {
+      if (!Object.prototype.hasOwnProperty.call(schema, keyword)) continue;
+      inspect(schema[keyword], joinPath(path, keyword), dropped || DROPPED_SLOTS.includes(keyword));
+    }
+  };
+
+  descend(tool.inputSchema, 'inputSchema', false);
+  return out;
+}
+
 /** Re-exported so docs and tests can enumerate what compile drops, by evidence tier. */
 export const DROPPED_KEYWORDS = Object.freeze({
   /** Named as unsupported by OpenAI. */

@@ -51,7 +51,7 @@ await client.responses.create({ model, input, tools });
 
 ## What it does
 
-- **`check(tool)`** — 27 compatibility rules, each with a stable `openai/…` code,
+- **`check(tool)`** — 29 compatibility rules, each with a stable `openai/…` code,
   a precise path, a documentation URL and an honest statement of what `compile()`
   will do about it. See [docs/rules.md](./docs/rules.md).
 - **`compile(tool, options)`** — emits the Responses API `FunctionTool` shape

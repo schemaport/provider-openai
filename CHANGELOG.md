@@ -10,11 +10,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Initial release. Rules reviewed against official OpenAI documentation on
 2026-08-20; sources are listed in `docs/openai-support.md`.
 
+### Fixed
+
+- **Silent weakening of boolean subschemas.** A `false` subschema in
+  `properties`, `$defs`, `definitions`, `anyOf` or `oneOf` compiled to `{}` with
+  no diagnostic, no transformation record and no refusal — turning "accept
+  nothing" into "accept anything". `items: false` was worse: the `items` keyword
+  was dropped entirely, letting the array accept any element. Both now raise
+  `openai/boolean-subschema` and record a `lossy: true`
+  `widened-false-subschema` transformation, so compilation is refused without
+  `allowLossy`. `true` subschemas compile to the equivalent `{}` with a
+  non-lossy `normalized-true-subschema` record. Values that are not schemas at
+  all are handled the same way under `openai/non-schema-subschema` /
+  `widened-invalid-subschema`. `additionalProperties: false` is unaffected.
+
+  `validateCanonicalTool` in `@schemaport/core` rejects boolean subschemas, so
+  the CLI path could not reach this; the fix is defence in depth for callers
+  using the adapter directly.
+
 ### Added
 
 - `openaiProvider`, a `SchemaPortProvider` targeting the OpenAI **Responses API**
   function tool (`POST /v1/responses`, `tools[]`) with `strict: true`.
-- `check()` with 27 compatibility rules:
+- `check()` with 29 compatibility rules:
   - Tool identity — `openai/tool-name-invalid-characters`,
     `openai/tool-name-too-long`, `openai/missing-tool-description`.
   - Root schema — `openai/root-schema-not-object`, `openai/root-schema-anyof`.
@@ -27,6 +45,8 @@ Initial release. Rules reviewed against official OpenAI documentation on
     `openai/additional-properties-true`,
     `openai/extra-properties-no-longer-accepted`,
     `openai/additional-properties-schema`.
+  - Subschema slots — `openai/boolean-subschema`,
+    `openai/non-schema-subschema`.
   - Keywords — `openai/unsupported-keyword`,
     `openai/undocumented-constraint-keyword`, `openai/unknown-keyword`,
     `openai/unsupported-string-format`, `openai/one-of-converted-to-any-of`,
@@ -44,11 +64,13 @@ Initial release. Rules reviewed against official OpenAI documentation on
   `added-additional-properties-false`, `closed-open-object`,
   `dropped-annotation-keyword`, `dropped-default-keyword`,
   `converted-const-to-enum`, `renamed-definitions-to-defs`,
-  `rewrote-definitions-reference`, `converted-nullable-to-type-union`.
+  `rewrote-definitions-reference`, `converted-nullable-to-type-union`,
+  `normalized-true-subschema`.
   Lossy: `dropped-unsupported-keyword`, `dropped-conflicting-definitions`,
   `dropped-undocumented-constraint-keyword`, `dropped-unknown-keyword`,
   `dropped-unsupported-format`, `dropped-additional-properties-schema`,
-  `converted-one-of-to-any-of`.
+  `converted-one-of-to-any-of`, `widened-false-subschema`,
+  `widened-invalid-subschema`.
 - `probe()` against `POST /v1/responses` using `openai@7.5.0`, with a forced
   `tool_choice`, a 1024-token output cap and no execution of the developer's
   function. Model resolution: `options.model` → `SCHEMAPORT_OPENAI_MODEL` →

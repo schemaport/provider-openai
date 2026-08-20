@@ -4,6 +4,12 @@ import { minimalTool, nestedTool, openMapTool, refundOrderTool } from '@schemapo
 import { DROPPED_KEYWORDS, checkOpenAI, classifyKeyword, openaiProvider } from '../src/index.js';
 import {
   annotatedTool,
+  closedObjectTool,
+  falseInsideAllOfTool,
+  falseItemsTool,
+  falseSubschemaTool,
+  nonSchemaSubschemaTool,
+  trueSubschemaTool,
   badFormatTool,
   badNameTool,
   bigEnumTool,
@@ -44,12 +50,13 @@ describe('diagnostic conventions', () => {
     }
   });
 
-  it('implements exactly the 27 codes docs/rules.md documents', () => {
+  it('implements exactly the 29 codes docs/rules.md documents', () => {
     // Guards the counts in README.md and docs/rules.md against drift.
     const documented = [
       'openai/additional-properties-schema',
       'openai/additional-properties-true',
       'openai/annotation-keyword-dropped',
+      'openai/boolean-subschema',
       'openai/conflicting-definitions-keywords',
       'openai/const-converted-to-enum',
       'openai/default-keyword-dropped',
@@ -57,6 +64,7 @@ describe('diagnostic conventions', () => {
       'openai/large-enum-too-long',
       'openai/legacy-definitions-keyword',
       'openai/missing-tool-description',
+      'openai/non-schema-subschema',
       'openai/nullable-instead-of-omitted',
       'openai/nullable-keyword-converted',
       'openai/object-missing-additional-properties',
@@ -75,8 +83,8 @@ describe('diagnostic conventions', () => {
       'openai/unsupported-keyword',
       'openai/unsupported-string-format',
     ];
-    expect(documented).toHaveLength(27);
-    expect(new Set(documented).size).toBe(27);
+    expect(documented).toHaveLength(29);
+    expect(new Set(documented).size).toBe(29);
   });
 
   it('is stable: the same tool always produces the same diagnostics', () => {
@@ -308,6 +316,57 @@ describe('keyword rules', () => {
 
   it('keeps documented formats', () => {
     expect(codes(checkOpenAI(nestedTool))).not.toContain('openai/unsupported-string-format');
+  });
+});
+
+describe('boolean and non-schema subschemas', () => {
+  it('openai/boolean-subschema is an error for `false`, because `{}` is far wider', () => {
+    const hit = find(checkOpenAI(falseSubschemaTool), 'openai/boolean-subschema');
+    expect(hit.severity).toBe('error');
+    expect(hit.compile).toEqual({
+      supported: true,
+      lossy: true,
+      detail: 'Emits `{}`, which accepts any value.',
+    });
+    expect(hit.path).toBe('inputSchema.properties.a');
+  });
+
+  it('openai/boolean-subschema is only an info for `true`, which is equivalent', () => {
+    const hit = find(checkOpenAI(trueSubschemaTool), 'openai/boolean-subschema');
+    expect(hit.severity).toBe('info');
+    expect(hit.compile.lossy).toBe(false);
+  });
+
+  it('fires on `items: false`', () => {
+    const hit = find(checkOpenAI(falseItemsTool), 'openai/boolean-subschema');
+    expect(hit.severity).toBe('error');
+    expect(hit.path).toBe('inputSchema.properties.xs.items');
+  });
+
+  it('fires inside a slot compile drops wholesale, and says so', () => {
+    const hit = find(checkOpenAI(falseInsideAllOfTool), 'openai/boolean-subschema');
+    expect(hit.path).toBe('inputSchema.properties.a.allOf[0]');
+    expect(hit.compile.lossy).toBe(true);
+    expect(hit.compile.detail).toContain('enclosing keyword is dropped');
+  });
+
+  it('openai/non-schema-subschema covers values that are not schemas at all', () => {
+    const hit = find(checkOpenAI(nonSchemaSubschemaTool), 'openai/non-schema-subschema');
+    expect(hit.severity).toBe('error');
+    expect(hit.compile.lossy).toBe(true);
+    expect(hit.message).toContain('type string');
+  });
+
+  it('does NOT fire for `additionalProperties: false`, whose normal form is a boolean', () => {
+    expect(codes(checkOpenAI(closedObjectTool))).toEqual([]);
+    expect(codes(checkOpenAI(refundOrderTool))).not.toContain('openai/boolean-subschema');
+    expect(codes(checkOpenAI(openObjectTool))).not.toContain('openai/boolean-subschema');
+  });
+
+  it('is silent for every shared core fixture', () => {
+    for (const tool of [refundOrderTool, nestedTool, openMapTool, minimalTool]) {
+      expect(codes(checkOpenAI(tool))).not.toContain('openai/boolean-subschema');
+    }
   });
 });
 

@@ -6,6 +6,7 @@ import {
   checkKeywords,
   checkOptionalProperties,
   checkRootSchema,
+  checkSubschemaSlots,
   checkToolDescription,
   checkToolName,
 } from './rules.js';
@@ -70,6 +71,7 @@ export function checkOpenAI(tool: CanonicalTool): Diagnostic[] {
     ...checkToolDescription(tool),
     ...checkRootSchema(tool),
     ...checkBudget(tool),
+    ...checkSubschemaSlots(tool),
   ];
 
   walkSurvivingSchemas(tool.inputSchema, 'inputSchema', (schema, path) => {

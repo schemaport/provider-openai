@@ -1,6 +1,6 @@
 # Compatibility rules
 
-Every rule `check()` implements, with its stable code. All 27 codes are prefixed
+Every rule `check()` implements, with its stable code. All 29 codes are prefixed
 `openai/`, carry a `path` built with `joinPath` and a `docsUrl` pointing at the
 official page the rule came from.
 
@@ -47,6 +47,31 @@ deleting parts of the caller's contract.
 | `openai/additional-properties-true` | error | fixes | An object explicitly sets `additionalProperties: true`. OpenAI strict mode requires `false`. |
 | `openai/extra-properties-no-longer-accepted` | **warning** | fixes | Paired with the above, at the same path: after compilation the model can no longer send the undeclared keys the canonical schema allowed. |
 | `openai/additional-properties-schema` | error | fixes (lossy) | `additionalProperties` is a value schema (an open typed map). Strict mode cannot express it, so the map is erased. |
+
+## Boolean and non-schema subschemas
+
+| Code | Severity | Compile | Fires when |
+|---|---|---|---|
+| `openai/boolean-subschema` | error | fixes (lossy) | A subschema slot holds `false`. `false` accepts *nothing*; OpenAI cannot express that, so it compiles to `{}`, which accepts *anything* — the widest possible weakening of a constraint. |
+| `openai/boolean-subschema` | info | fixes | A subschema slot holds `true`. It compiles to `{}`, which accepts exactly the same values, so nothing is lost. |
+| `openai/non-schema-subschema` | error | fixes (lossy) | A subschema slot holds something that is not a schema at all (a string, a number, `null`). Treated like `false`: replaced with `{}` and reported lossy, rather than silently normalised away. |
+
+Slots checked: `properties`, `items`, `$defs`, `definitions`, `prefixItems`,
+`anyOf`, `oneOf`, `allOf`, `not`. **`additionalProperties` is exempt** — a
+boolean is its normal form there, and `openai/object-missing-additional-properties`
+/ `openai/additional-properties-true` / `openai/additional-properties-schema`
+already own it. A plain `additionalProperties: false` produces no diagnostic.
+
+Where the boolean sits inside a slot compile drops wholesale (`allOf`, `not`,
+`prefixItems`), the diagnostic says so in its `compile.detail` instead of
+claiming a `{}` will be emitted. Both paths are lossy, so compilation is refused
+either way.
+
+**Why this rule exists even though the CLI cannot reach it.**
+`validateCanonicalTool` in `@schemaport/core` rejects boolean subschemas
+outright, so no tool loaded from disk gets this far. But the adapter is a public
+API that can be called directly, and SchemaPort's promise never to weaken a
+schema silently has to hold there too. This is defence in depth.
 
 ### Why optional properties produce two diagnostics
 

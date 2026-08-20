@@ -4,6 +4,11 @@ import { isLossy, minimalTool, nestedTool, openMapTool, refundOrderTool } from '
 import { compileOpenAI, openaiProvider } from '../src/index.js';
 import {
   annotatedTool,
+  closedObjectTool,
+  falseItemsTool,
+  falseSubschemaTool,
+  nonSchemaSubschemaTool,
+  trueSubschemaTool,
   badFormatTool,
   badNameTool,
   cleanTool,
@@ -270,6 +275,88 @@ describe('the lossy gate', () => {
       parameters: {
         properties: { value: { anyOf: [{ type: 'string' }, { type: 'number' }] } },
       },
+    });
+  });
+});
+
+describe('boolean and non-schema subschemas', () => {
+  it('refuses a `false` subschema without allowLossy', () => {
+    const result = compileOpenAI(falseSubschemaTool);
+    expect(result.ok).toBe(false);
+    expect(result.output).toBeUndefined();
+    expect(lossyCodes(result)).toContain('widened-false-subschema');
+    expect(result.diagnostics.map((d) => d.code)).toContain('core/lossy-transformation-refused');
+  });
+
+  it('compiles a `false` subschema to `{}` under allowLossy, recorded lossy', () => {
+    const result = compileOpenAI(falseSubschemaTool, { allowLossy: true });
+    expect(result.ok).toBe(true);
+    expect(result.output).toMatchObject({
+      parameters: { properties: { a: {}, b: { type: 'string' } } },
+    });
+    expect(result.transformations).toContainEqual({
+      code: 'widened-false-subschema',
+      path: 'inputSchema.properties.a',
+      detail:
+        'Emitted `{}` in place of the `false` subschema. OpenAI cannot express "accept nothing", so this now accepts any value.',
+      lossy: true,
+    });
+  });
+
+  it('compiles a `true` subschema cleanly, with no lossy transformation', () => {
+    const result = compileOpenAI(trueSubschemaTool);
+    expect(result.ok).toBe(true);
+    expect(lossyCodes(result)).toEqual([]);
+    expect(result.output).toMatchObject({ parameters: { properties: { a: {} } } });
+    expect(codes(result.transformations)).toContain('normalized-true-subschema');
+  });
+
+  it('emits `items: {}` rather than dropping `items` entirely', () => {
+    const result = compileOpenAI(falseItemsTool, { allowLossy: true });
+    const xs = (
+      result.output as { parameters: { properties: { xs: Record<string, unknown> } } }
+    ).parameters.properties.xs;
+    // Regression guard: `items` used to vanish, letting the array accept anything.
+    expect('items' in xs).toBe(true);
+    expect(xs['items']).toEqual({});
+    expect(lossyCodes(result)).toContain('widened-false-subschema');
+  });
+
+  it('refuses a non-schema subschema value', () => {
+    const result = compileOpenAI(nonSchemaSubschemaTool);
+    expect(result.ok).toBe(false);
+    expect(lossyCodes(result)).toContain('widened-invalid-subschema');
+  });
+
+  it('does not regress `additionalProperties: false`', () => {
+    const result = compileOpenAI(closedObjectTool);
+    expect(result.ok).toBe(true);
+    expect(result.transformations).toEqual([
+      {
+        code: 'renamed-input-schema-to-parameters',
+        path: 'inputSchema',
+        detail: 'Emitted `inputSchema` as the OpenAI `parameters` field.',
+        lossy: false,
+      },
+      {
+        code: 'enabled-strict-mode',
+        path: 'inputSchema',
+        detail:
+          'Emitted `strict: true` so OpenAI enforces the schema instead of best-effort matching.',
+        lossy: false,
+      },
+    ]);
+    expect(result.output).toEqual({
+      type: 'function',
+      name: 'closed_object',
+      description: 'Uses additionalProperties: false',
+      parameters: {
+        type: 'object',
+        properties: { a: { type: 'string' } },
+        required: ['a'],
+        additionalProperties: false,
+      },
+      strict: true,
     });
   });
 });

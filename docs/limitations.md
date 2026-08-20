@@ -41,6 +41,34 @@ Separately, `{"amount": null}` and "`amount` omitted" are different values. A
 canonical schema that distinguishes them cannot survive strict mode intact; the
 `openai/strict-optional-property` warning exists to say so on every compile.
 
+## Boolean subschemas are a hard stop, by design
+
+JSON Schema lets `true` or `false` stand in for a whole subschema. OpenAI's
+supported subset has no equivalent, so compile must emit `{}`.
+
+For `true` that is free — both accept everything. For `false` it is the single
+worst thing SchemaPort could do quietly: `false` accepts *nothing*, `{}` accepts
+*anything*. So `false` in any of `properties`, `items`, `$defs`, `definitions`,
+`prefixItems`, `anyOf`, `oneOf`, `allOf` or `not` raises
+`openai/boolean-subschema` as an **error**, records a **`lossy: true`**
+transformation (`widened-false-subschema`), and refuses to compile without
+`--allow-lossy`. A value that is not a schema at all gets the same treatment
+under `openai/non-schema-subschema`.
+
+`additionalProperties` is exempt — a boolean is its normal form there and the
+`additional-properties-*` rules already own it.
+
+**This is defence in depth.** `validateCanonicalTool` in `@schemaport/core`
+rejects boolean subschemas outright, so a tool loaded through the CLI never
+reaches this code. The adapter is a public API that can be called directly, and
+the guarantee that SchemaPort never weakens a schema silently has to hold on
+that path too. If you are calling `compile()` directly on a schema you did not
+validate first, this rule is what stands between you and a silently broken
+contract.
+
+There is no way to express "accept nothing" for OpenAI. If a `false` subschema
+was load-bearing, remove the property instead.
+
 ## Objects with no declared properties
 
 `{"type": "object"}` with no `properties` compiles to
