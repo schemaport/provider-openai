@@ -178,7 +178,7 @@ stable between runs.
 
 ```bash
 export OPENAI_API_KEY=sk-...
-schemaport probe --target openai tools/refund_order.json
+schemaport probe --targets openai tools/refund_order.json
 ```
 
 See [probing.md](./probing.md) for the request that is sent, the default model

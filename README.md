@@ -107,7 +107,7 @@ openai` with a real key answers what OpenAI does with your schema today. See
 export OPENAI_API_KEY=sk-...
 export SCHEMAPORT_OPENAI_MODEL=gpt-5.6-luna   # optional override
 
-schemaport probe --target openai tools/refund_order.json
+schemaport probe --targets openai tools/refund_order.json
 ```
 
 Default model `gpt-5.6-luna`: the cheapest current model whose model page lists

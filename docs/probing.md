@@ -12,7 +12,7 @@ export SCHEMAPORT_OPENAI_MODEL=...    # optional, overrides the default model
 ```
 
 ```bash
-schemaport probe --target openai path/to/tool.json
+schemaport probe --targets openai path/to/tool.json
 ```
 
 Programmatically:
