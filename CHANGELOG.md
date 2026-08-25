@@ -5,6 +5,38 @@ All notable changes to `@schemaport/provider-openai` are documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **`openai/schema-nesting-near-limit`** — a new **warning** that fires when a
+  schema's deepest nesting reaches 9 or 10 levels, within two levels of
+  OpenAI's documented limit of 10, but does not exceed it. This brings the rule
+  count to **30**.
+
+  Until now there was nothing between "fine" and "rejected": a schema at depth
+  9 or 10 passed `check()` in silence and then broke on the next nested
+  property someone added, turning a clean CI run into an API rejection in a
+  diff that had nothing obviously to do with depth. The warning names the
+  measured depth, the limit and the remaining headroom (one level at depth 9,
+  none at depth 10).
+
+  Nothing about compilation changes. The schema is sendable as written and is
+  emitted byte-for-byte unchanged, so the diagnostic's compile ability is
+  plain `compilable` — not lossy, never a refusal, unaffected by
+  `--allow-lossy` — and the warning simply survives into the compile result and
+  the manifest. There is no accompanying `Transformation`, because compile does
+  not touch the schema.
+
+  **One finding per schema, not two.** Above the limit the warning is
+  suppressed and the existing `openai/schema-too-deep` error fires alone. Depth
+  8 reports nothing, 9 and 10 report the warning, 11 and beyond report the
+  error.
+
+  The two-level margin is SchemaPort's own choice, not an OpenAI limit; it is
+  exported as `NESTING_DEPTH_WARNING_THRESHOLD` (9), derived from
+  `MAX_NESTING_DEPTH`.
+
 ## [0.1.0] - 2026-08-20
 
 Initial release. Rules reviewed against official OpenAI documentation on
