@@ -12,6 +12,7 @@ import {
   badFormatTool,
   badNameTool,
   cleanTool,
+  deeplyNestedTool,
   definitionsTool,
   nullableTool,
   openObjectTool,
@@ -358,6 +359,33 @@ describe('boolean and non-schema subschemas', () => {
       },
       strict: true,
     });
+  });
+});
+
+describe('near-limit nesting depth', () => {
+  it('compiles unchanged and carries the warning into the result', () => {
+    for (const depth of [9, 10]) {
+      const result = compileOpenAI(deeplyNestedTool(depth));
+      expect(result.ok, `depth ${String(depth)}`).toBe(true);
+      expect(isLossy(result)).toBe(false);
+      expect(result.output).toBeDefined();
+      // No transformation: the rule changes nothing about the emitted schema.
+      expect(codes(result.transformations)).toEqual([
+        'renamed-input-schema-to-parameters',
+        'enabled-strict-mode',
+      ]);
+      expect(result.diagnostics.map((d) => d.code)).toEqual(['openai/schema-nesting-near-limit']);
+    }
+  });
+
+  it('does not change compile().ok either side of the warning band', () => {
+    expect(compileOpenAI(deeplyNestedTool(8)).ok).toBe(true);
+    expect(compileOpenAI(deeplyNestedTool(9)).ok).toBe(true);
+    expect(compileOpenAI(deeplyNestedTool(10)).ok).toBe(true);
+    // Over the limit is still a refusal, and from the error, not the warning.
+    const tooDeep = compileOpenAI(deeplyNestedTool(11));
+    expect(tooDeep.ok).toBe(false);
+    expect(tooDeep.diagnostics.map((d) => d.code)).toEqual(['openai/schema-too-deep']);
   });
 });
 

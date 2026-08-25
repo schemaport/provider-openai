@@ -1,7 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import type { Diagnostic } from '@schemaport/core';
-import { minimalTool, nestedTool, openMapTool, refundOrderTool } from '@schemaport/core';
-import { DROPPED_KEYWORDS, checkOpenAI, classifyKeyword, openaiProvider } from '../src/index.js';
+import {
+  FIXTURE_TOOLS,
+  minimalTool,
+  nestedTool,
+  openMapTool,
+  refundOrderTool,
+} from '@schemaport/core';
+import {
+  DROPPED_KEYWORDS,
+  MAX_NESTING_DEPTH,
+  NESTING_DEPTH_WARNING_THRESHOLD,
+  checkOpenAI,
+  classifyKeyword,
+  openaiProvider,
+} from '../src/index.js';
 import {
   annotatedTool,
   closedObjectTool,
@@ -50,7 +63,7 @@ describe('diagnostic conventions', () => {
     }
   });
 
-  it('implements exactly the 29 codes docs/rules.md documents', () => {
+  it('implements exactly the 30 codes docs/rules.md documents', () => {
     // Guards the counts in README.md and docs/rules.md against drift.
     const documented = [
       'openai/additional-properties-schema',
@@ -71,6 +84,7 @@ describe('diagnostic conventions', () => {
       'openai/one-of-converted-to-any-of',
       'openai/root-schema-anyof',
       'openai/root-schema-not-object',
+      'openai/schema-nesting-near-limit',
       'openai/schema-too-deep',
       'openai/schema-too-large',
       'openai/strict-optional-property',
@@ -83,8 +97,8 @@ describe('diagnostic conventions', () => {
       'openai/unsupported-keyword',
       'openai/unsupported-string-format',
     ];
-    expect(documented).toHaveLength(29);
-    expect(new Set(documented).size).toBe(29);
+    expect(documented).toHaveLength(30);
+    expect(new Set(documented).size).toBe(30);
   });
 
   it('is stable: the same tool always produces the same diagnostics', () => {
@@ -375,6 +389,65 @@ describe('size limit rules', () => {
     expect(codes(checkOpenAI(deeplyNestedTool(10)))).not.toContain('openai/schema-too-deep');
     const hit = find(checkOpenAI(deeplyNestedTool(11)), 'openai/schema-too-deep');
     expect(hit.compile.supported).toBe(false);
+  });
+
+  describe('openai/schema-nesting-near-limit', () => {
+    it('is silent two or more levels below the limit', () => {
+      // `deeplyNestedTool` is otherwise clean, so depth 8 reports nothing at all.
+      expect(codes(checkOpenAI(deeplyNestedTool(8)))).toEqual([]);
+    });
+
+    it('fires at depth 9, one level below the limit', () => {
+      expect(codes(checkOpenAI(deeplyNestedTool(9)))).toEqual([
+        'openai/schema-nesting-near-limit',
+      ]);
+      const hit = find(checkOpenAI(deeplyNestedTool(9)), 'openai/schema-nesting-near-limit');
+      expect(hit.severity).toBe('warning');
+      expect(hit.path).toBe('inputSchema');
+      expect(hit.message).toContain('9 levels deep');
+      expect(hit.message).toContain(String(MAX_NESTING_DEPTH));
+    });
+
+    it('fires at depth 10, exactly on the limit', () => {
+      expect(codes(checkOpenAI(deeplyNestedTool(MAX_NESTING_DEPTH)))).toEqual([
+        'openai/schema-nesting-near-limit',
+      ]);
+      const hit = find(
+        checkOpenAI(deeplyNestedTool(MAX_NESTING_DEPTH)),
+        'openai/schema-nesting-near-limit',
+      );
+      expect(hit.message).toContain('10 levels deep');
+      expect(hit.message).toContain('no headroom left');
+    });
+
+    it('starts exactly at NESTING_DEPTH_WARNING_THRESHOLD', () => {
+      expect(NESTING_DEPTH_WARNING_THRESHOLD).toBe(9);
+      expect(
+        codes(checkOpenAI(deeplyNestedTool(NESTING_DEPTH_WARNING_THRESHOLD - 1))),
+      ).not.toContain('openai/schema-nesting-near-limit');
+      expect(codes(checkOpenAI(deeplyNestedTool(NESTING_DEPTH_WARNING_THRESHOLD)))).toContain(
+        'openai/schema-nesting-near-limit',
+      );
+    });
+
+    it('yields to openai/schema-too-deep over the limit: one finding, not two', () => {
+      expect(codes(checkOpenAI(deeplyNestedTool(11)))).toEqual(['openai/schema-too-deep']);
+      expect(codes(checkOpenAI(deeplyNestedTool(14)))).not.toContain(
+        'openai/schema-nesting-near-limit',
+      );
+    });
+
+    it('does not fire for any shared @schemaport/core fixture', () => {
+      for (const [name, tool] of Object.entries(FIXTURE_TOOLS)) {
+        expect(codes(checkOpenAI(tool)), name).not.toContain('openai/schema-nesting-near-limit');
+      }
+    });
+
+    it('is advance warning only: nothing is lost and compilation still succeeds', () => {
+      const hit = find(checkOpenAI(deeplyNestedTool(9)), 'openai/schema-nesting-near-limit');
+      expect(hit.compile.supported).toBe(true);
+      expect(hit.compile.lossy).toBe(false);
+    });
   });
 
   it('openai/too-many-enum-values', () => {
