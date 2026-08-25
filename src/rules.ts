@@ -41,6 +41,17 @@ export const MAX_TOTAL_PROPERTIES = 5000;
 /** "up to 10 levels of nesting" — structured outputs guide. */
 export const MAX_NESTING_DEPTH = 10;
 
+/**
+ * Depth at which SchemaPort starts warning that a schema is close to
+ * `MAX_NESTING_DEPTH`.
+ *
+ * **Not an OpenAI limit.** OpenAI documents only the hard ceiling; this is
+ * SchemaPort's own early-warning margin. It is two levels wide — the last two
+ * usable depths, 9 and 10 of 10 — so a schema is flagged before the next
+ * nested property pushes it over and OpenAI starts rejecting the tool.
+ */
+export const NESTING_DEPTH_WARNING_THRESHOLD = MAX_NESTING_DEPTH - 1;
+
 /** "up to 1000 enum values across all properties" — structured outputs guide. */
 export const MAX_TOTAL_ENUM_VALUES = 1000;
 
@@ -645,6 +656,20 @@ export function measureSchema(root: JsonSchema, rootPath: string): SchemaBudget 
   return budget;
 }
 
+/**
+ * Compare the measured schema against OpenAI's documented size limits.
+ *
+ * Every limit that is *exceeded* is an error whose compile ability is
+ * `notCompilable`: trimming a schema to fit would mean deleting parts of the
+ * caller's contract, which SchemaPort will not do.
+ *
+ * Nesting depth is the one limit with a second, softer finding underneath it.
+ * A schema at depth 9 or 10 is accepted by OpenAI today and compiles
+ * unchanged, but the next nested property added to it will not be — so
+ * `openai/schema-nesting-near-limit` reports the approach as a **warning**
+ * with a plain `compilable` ability. It is emitted only below the ceiling;
+ * over it, `openai/schema-too-deep` fires alone.
+ */
 export function checkBudget(tool: CanonicalTool): Diagnostic[] {
   const budget = measureSchema(tool.inputSchema, 'inputSchema');
   const out: Diagnostic[] = [];
@@ -674,6 +699,29 @@ export function checkBudget(tool: CanonicalTool): Diagnostic[] {
       'openai/schema-too-deep',
       `Schema nests ${budget.maxDepth} levels deep; OpenAI allows at most ${MAX_NESTING_DEPTH}.`,
       'inputSchema',
+    );
+  } else if (budget.maxDepth >= NESTING_DEPTH_WARNING_THRESHOLD) {
+    // Deliberately `else if`: over the limit, `openai/schema-too-deep` is the
+    // whole story and a second finding about the same depth would be noise.
+    const headroom = MAX_NESTING_DEPTH - budget.maxDepth;
+    out.push(
+      make({
+        toolName: tool.name,
+        severity: 'warning',
+        code: 'openai/schema-nesting-near-limit',
+        message:
+          `Schema nests ${budget.maxDepth} levels deep; OpenAI allows at most ${MAX_NESTING_DEPTH}. ` +
+          (headroom === 0
+            ? 'There is no headroom left: adding one more level of nesting anywhere in this ' +
+              'schema will make OpenAI reject the tool.'
+            : `There is room for ${headroom} more level${headroom === 1 ? '' : 's'} of nesting; ` +
+              'beyond that OpenAI will reject the tool.'),
+        path: 'inputSchema',
+        compile: compilable(
+          'Compiles unchanged. The schema is within the depth limit; this is advance warning only.',
+        ),
+        docsUrl: DOC_STRUCTURED_OUTPUTS,
+      }),
     );
   }
   if (budget.totalEnumValues > MAX_TOTAL_ENUM_VALUES) {

@@ -1,6 +1,6 @@
 # Compatibility rules
 
-Every rule `check()` implements, with its stable code. All 29 codes are prefixed
+Every rule `check()` implements, with its stable code. All 30 codes are prefixed
 `openai/`, carry a `path` built with `joinPath` and a `docsUrl` pointing at the
 official page the rule came from.
 
@@ -26,16 +26,57 @@ usable output at all.
 
 ## Size limits
 
-All five refuse, because trimming a schema to fit a size limit would mean
-deleting parts of the caller's contract.
+The five **exceeded-limit** rules all refuse, because trimming a schema to fit a
+size limit would mean deleting parts of the caller's contract. One further rule,
+`openai/schema-nesting-near-limit`, fires *below* the depth ceiling and does not
+refuse anything — see [below](#why-nesting-depth-warns-before-it-fails).
 
 | Code | Severity | Compile | Fires when |
 |---|---|---|---|
 | `openai/too-many-properties` | error | refuses | More than 5000 properties in total. |
 | `openai/schema-too-deep` | error | refuses | More than 10 levels of nesting. |
+| `openai/schema-nesting-near-limit` | **warning** | fixes | Nesting reaches 9 or 10 levels — within two levels of the limit of 10 — but does not exceed it. Advance warning: the schema is fine today, the next nested property is not. Never fires alongside `openai/schema-too-deep`. |
 | `openai/too-many-enum-values` | error | refuses | More than 1000 enum values across all properties. |
 | `openai/large-enum-too-long` | error | refuses | An enum with more than 250 values whose string values total more than 15,000 characters. |
 | `openai/schema-too-large` | error | refuses | Property names, definition names and enum values total more than 120,000 characters. |
+
+### Why nesting depth warns before it fails
+
+OpenAI allows 10 levels of nesting and rejects the tool at 11. Without this rule
+there is nothing between "fine" and "rejected": a schema at depth 9 or 10 passes
+`check()` in silence, and then the next nested property someone adds to it turns
+a clean CI run into an API rejection, usually in a diff that has nothing
+obviously to do with depth.
+
+`openai/schema-nesting-near-limit` is the only **warning** in this package that
+reports a schema OpenAI accepts as written and that compiles byte-for-byte
+unchanged. It fits neither half of the usual taxonomy:
+
+- it is **not** an error, because the schema *is* sendable — an error here would
+  fail a CI run gated on errors for a tool OpenAI is perfectly happy with;
+- it is **not** a "compilation changed runtime behaviour" warning either, in the
+  way `openai/nullable-instead-of-omitted` and
+  `openai/extra-properties-no-longer-accepted` are. Nothing changes. There is no
+  accompanying `Transformation`, because compile does not touch the schema.
+
+It is a **warning about the next change**, not about this one. Its
+`compile.supported` is `true` and `compile.lossy` is `false`, so
+`finalizeCompile` never refuses because of it and `--allow-lossy` is irrelevant;
+the warning simply survives into the compile result and the manifest so the
+headroom is visible where the schema is reviewed.
+
+**One finding per schema, never two.** Over the limit the warning is suppressed
+and `openai/schema-too-deep` fires alone. Depth 8 → nothing; depth 9 and 10 →
+the warning; depth 11 and beyond → the error. The message states the measured
+depth, the limit, and the remaining headroom (one level at depth 9, none at
+depth 10).
+
+The two-level margin is SchemaPort's own choice, not something OpenAI documents.
+It is exported as `NESTING_DEPTH_WARNING_THRESHOLD` (9), derived from
+`MAX_NESTING_DEPTH`.
+
+Depth is measured by `measureSchema`, which walks wider than the compatibility
+rules do — see [Where check does not descend](#where-check-does-not-descend).
 
 ## Objects
 
@@ -116,6 +157,11 @@ Rules where only the runtime fact is certain stay single warnings.
 `openai/nullable-keyword-converted` are not promoted, because OpenAI does not
 document whether it *rejects* `default`, `definitions` or `nullable` — claiming
 an error there would assert something unverified.
+
+`openai/schema-nesting-near-limit` is a single warning for a different reason
+again: there is no error to pair it with, because OpenAI accepts the schema as
+written and compile changes nothing. See
+[Why nesting depth warns before it fails](#why-nesting-depth-warns-before-it-fails).
 
 ## Keywords
 
