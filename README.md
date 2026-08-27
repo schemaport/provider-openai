@@ -55,20 +55,42 @@ await client.responses.create({ model, input, tools });
   a precise path, a documentation URL and an honest statement of what `compile()`
   will do about it. See [docs/rules.md](./docs/rules.md).
 - **`compile(tool, options)`** — emits the Responses API `FunctionTool` shape
-  with `strict: true`, recording every change as a `Transformation`. Changes that
-  widen the accepted value set are marked `lossy` and refuse to compile without
-  `allowLossy`. See [docs/transformations.md](./docs/transformations.md).
-- **`probe(tool, options)`** — sends one minimal request and reports whether
-  OpenAI accepted the schema, distinguishing a real rejection from a missing key,
-  a stale model id or a network failure. See [docs/probing.md](./docs/probing.md).
+  with `strict: true`, or the Chat Completions shape with
+  `{ apiSurface: 'chat-completions' }`, recording every change as a
+  `Transformation`. Changes that widen the accepted value set are marked `lossy`
+  and refuse to compile without `allowLossy`. See
+  [docs/transformations.md](./docs/transformations.md).
+- **`probe(tool, options)`** — sends one minimal request, to whichever surface
+  you selected, and reports whether OpenAI accepted the schema, distinguishing a
+  real rejection from a missing key, a stale model id or a network failure. See
+  [docs/probing.md](./docs/probing.md).
 
 ## The target surface
 
-The **Responses API** function tool (`POST /v1/responses`, `tools[]`), always
-with `strict: true` — the only mode in which OpenAI actually enforces the schema.
-Chat Completions uses the same `parameters` schema but a different wrapper; this
-package does not emit that form. The reasoning is in
-[docs/openai-support.md](./docs/openai-support.md#why-responses-not-chat-completions).
+Two, both always with `strict: true` — the only mode in which OpenAI actually
+enforces the schema.
+
+The default is the **Responses API** function tool (`POST /v1/responses`,
+`tools[]`), a flat `{ type, name, description, parameters, strict }`. Pass
+`apiSurface` for the **Chat Completions** form instead:
+
+```ts
+const result = openaiProvider.compile(tool, { apiSurface: 'chat-completions' });
+// result.output -> { type: 'function', function: { name, description, parameters, strict: true } }
+
+await client.chat.completions.create({ model, messages, tools: [result.output] });
+```
+
+Note that `strict` moves *inside* `function` on that surface. The two request
+bodies are not interchangeable, which is why the surface is named rather than
+inferred.
+
+**Choosing a surface changes the envelope and nothing else.** Same strict-mode
+requirements, same supported keywords, same transformations on `parameters`,
+same diagnostics, same refusals. It will not rescue a schema that the other
+surface refused, and it does not make anything more or less lossy. Which to
+pick, and the exact shapes as declared by `openai@7.5.0`, are in
+[docs/openai-support.md](./docs/openai-support.md#which-surface-to-choose-and-why).
 
 ## The lossy rule
 

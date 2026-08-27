@@ -21,10 +21,11 @@ Programmatically:
 import { openaiProvider } from '@schemaport/provider-openai';
 
 const result = await openaiProvider.probe(tool, {
-  model: 'gpt-5.6-luna',   // optional
+  model: 'gpt-5.6-luna',      // optional
   apiKey: process.env.MY_KEY, // optional; falls back to OPENAI_API_KEY
   allowLossy: false,          // optional
   timeoutMs: 30_000,          // optional
+  apiSurface: 'responses',    // optional; or 'chat-completions'
 });
 ```
 
@@ -52,7 +53,9 @@ waiting for a release.
 
 ## What gets sent
 
-Exactly one `POST /v1/responses`:
+Exactly one request, to the endpoint matching `apiSurface`.
+
+`apiSurface: 'responses'` (the default) — one `POST /v1/responses`:
 
 ```jsonc
 {
@@ -64,12 +67,34 @@ Exactly one `POST /v1/responses`:
 }
 ```
 
+`apiSurface: 'chat-completions'` — one `POST /v1/chat/completions`:
+
+```jsonc
+{
+  "model": "gpt-5.6-luna",
+  "messages": [{ "role": "user", "content": "<probePrompt(tool)>" }],
+  "tools": [ /* the compiled ChatCompletionFunctionTool */ ],
+  "tool_choice": { "type": "function", "function": { "name": "<tool name>" } },
+  "max_completion_tokens": 1024
+}
+```
+
 - `probePrompt` comes from `@schemaport/core` and asks the model to call the
   tool once with plausible placeholder values.
-- `tool_choice` is pinned so the model does not answer in prose.
+- `tool_choice` is pinned so the model does not answer in prose. Its shape
+  follows the SDK: flat on Responses, `ChatCompletionNamedToolChoice` — which
+  nests the name — on Chat Completions.
 - The output cap is 1024 tokens: enough that a reasoning model can still emit
-  one forced tool call, small enough that a probe stays cheap.
+  one forced tool call, small enough that a probe stays cheap. Chat Completions
+  spells it `max_completion_tokens`; `max_tokens` is marked `@deprecated` in the
+  SDK types and is not used.
 - `timeoutMs` is passed to the SDK as the per-request `timeout`.
+
+The tool sent is compiled **for the surface being probed**, so a Chat
+Completions probe verifies the exact body you would send yourself, nesting and
+all. Everything else is unchanged between the two: compile still runs first,
+the key and model still resolve the same way, and every failure is still
+classified by `classifyProviderError`.
 
 ## Compile runs first
 
@@ -177,6 +202,39 @@ const client = {
 
 const result = await openaiProvider.probe(refundOrderTool, { client });
 ```
+
+For the Chat Completions surface the seam is one level deeper — the package
+calls `client.chat.completions.create` and reads
+`choices[].message.tool_calls[]`:
+
+```ts
+const client = {
+  chat: {
+    completions: {
+      create: async () => ({
+        choices: [{
+          message: {
+            role: 'assistant',
+            tool_calls: [{
+              id: 'call_1',
+              type: 'function',
+              function: { name: 'refund_order', arguments: '{"orderId":"o_1","amount":null}' },
+            }],
+          },
+        }],
+      }),
+    },
+  },
+};
+
+const result = await openaiProvider.probe(refundOrderTool, {
+  client,
+  apiSurface: 'chat-completions',
+});
+```
+
+A client that lacks the endpoint for the surface you asked for is reported as
+`status: 'error'`, `errorKind: 'unsupported'`, and nothing is sent.
 
 Every test in this repository drives a fake client this way. None makes a
 network request.

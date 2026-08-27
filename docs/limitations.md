@@ -108,12 +108,28 @@ have that entry silently discarded, with no `Transformation` recorded. Run
 `validateCanonicalTool` from `@schemaport/core` first — the CLI does this during
 loading.
 
-## Chat Completions is not a supported output target
+## Chat Completions is an opt-in output target, and only the envelope differs
 
-The compiled output is the Responses API tool shape. Chat Completions nests the
-function under a `function` key. The `parameters` schema is identical, so you can
-re-wrap it yourself, but this package does not emit that form and does not probe
-against it.
+`compile(tool, { apiSurface: 'chat-completions' })` emits the nested
+`{ type, function: { name, description, parameters, strict } }` shape, and
+`probe(tool, { apiSurface: 'chat-completions' })` sends it to
+`POST /v1/chat/completions`. The default is still `'responses'`.
+
+Be clear about what this does **not** buy you. The option changes the wrapper
+and nothing else:
+
+- The same keywords survive. `minLength` is still dropped on both surfaces,
+  and so is every other tier-1, tier-2 and unknown keyword.
+- The same things are lossy. A tool that needs `--allow-lossy` for Responses
+  needs it for Chat Completions, and vice versa. Switching surfaces is never a
+  way around a refusal.
+- The same diagnostics are reported, with the same severities and paths.
+- The same strict-mode requirements apply — closed objects, everything in
+  `required`, optional properties encoded as `"null"` in the type union.
+
+The only differences you will see in a compile result are the shape of `output`
+and one extra non-lossy `nested-under-function-key` transformation. See
+[openai-support.md](./openai-support.md#which-surface-to-choose-and-why).
 
 ## Scope
 

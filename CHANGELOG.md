@@ -9,6 +9,89 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Chat Completions as a second output target.** `compile()` and `probe()` now
+  take an optional `apiSurface`, either `'responses'` (the default, unchanged)
+  or `'chat-completions'`:
+
+  ```ts
+  const result = openaiProvider.compile(tool, { apiSurface: 'chat-completions' });
+  // { type: 'function', function: { name, description, parameters, strict: true } }
+
+  await client.chat.completions.create({ model, messages, tools: [result.output] });
+  ```
+
+  Until now the only emitted shape was the flat Responses API `FunctionTool`,
+  and `docs/limitations.md` recorded Chat Completions as unsupported. Chat
+  Completions is still widely used, so anyone targeting it had to re-nest
+  SchemaPort's output by hand — the exact manual reshaping this package exists
+  to remove. The shapes are confirmed against `openai@7.5.0`:
+  `ChatCompletionFunctionTool` is `{ type: 'function'; function:
+  Shared.FunctionDefinition }`, and `FunctionDefinition` is `{ name;
+  description?; parameters?; strict? }`.
+
+  **`strict` is not in the same place on the two surfaces.** On the Responses
+  tool it is a top-level sibling of `name` and `parameters`; on the Chat
+  Completions tool it lives inside `function`. A tool compiled for one surface
+  and posted to the other does not merely fail validation — a top-level `strict`
+  on Chat Completions is not the strict flag at all, so the likelier outcome is
+  a schema that silently goes unenforced. That is why the surface is a named
+  option rather than something inferred.
+
+  **The compatibility rules are unchanged, and are not duplicated.** The schema
+  pipeline runs once and only the final wrapping differs (`src/surface.ts`).
+  Same strict-mode requirements, same supported-keyword allowlist, same
+  transformations on `parameters`, same size limits, same diagnostics, same
+  refusals. Choosing Chat Completions does **not** change which keywords
+  survive, does not rescue a schema the other surface refused, and does not make
+  anything more or less lossy. `parameters` is byte-identical between the two
+  for every shared `@schemaport/core` fixture, and there is a test that says so.
+
+  **The default is byte-identical to before.** `compile(tool)` and
+  `compile(tool, { allowLossy })` — the calls the CLI makes — emit exactly the
+  bytes 0.1.0 emitted, with the same transformation array and the same
+  diagnostics. `test/fixtures/main-output.ts` pins that output for all six
+  shared fixtures, captured from the previous commit rather than regenerated
+  from the current source.
+
+  `apiSurface` is optional and adds nothing to `@schemaport/core`;
+  `openaiProvider` remains assignable to `SchemaPortProvider`, asserted at build
+  time in `src/index.ts`.
+
+- **`nested-under-function-key`** — a new non-lossy `Transformation`, recorded
+  when and only when the Chat Completions envelope is used, so the manifest
+  records which surface was emitted. The Responses envelope adds nothing new:
+  `renamed-input-schema-to-parameters` and `enabled-strict-mode` already
+  describe it and have been in the manifest since 0.1.0, so a third entry would
+  have changed every existing manifest to say what it already said.
+
+- **`probe()` targets the selected surface.** With
+  `apiSurface: 'chat-completions'` it sends one `POST /v1/chat/completions`
+  through the SDK's `chat.completions` path, carrying the nested tool, the
+  `probePrompt` text as a `messages` entry, the nested
+  `ChatCompletionNamedToolChoice` form of `tool_choice`, and
+  `max_completion_tokens` (`max_tokens` is `@deprecated` in the SDK types). It
+  reads the call back from `choices[].message.tool_calls[]`. Every existing
+  guarantee holds on both paths: compile runs first and a refused schema is
+  never sent, key and model resolution are unchanged, failures are classified by
+  `classifyProviderError`, and `options.client` is still the only way a test
+  reaches an SDK. `OpenAIProbeClient` is now a union of the two structural
+  client slices; a client that cannot reach the requested surface is reported as
+  `errorKind: 'unsupported'` with nothing sent.
+
+- New exports: `OpenAIApiSurface`, `OpenAICompileOptions`, `OpenAIProbeOptions`,
+  `OpenAIChatCompletionsTool`, `OpenAICompiledTool`, `OpenAIProvider`,
+  `OpenAIResponsesProbeClient`, `OpenAIChatCompletionsProbeClient`,
+  `DEFAULT_API_SURFACE`, `OPENAI_API_SURFACES`,
+  `CHAT_COMPLETIONS_WRAPPER_CODE` and `wrapForSurface`. `OpenAIFunctionTool`
+  moved from `src/compile.ts` to `src/surface.ts` and is re-exported unchanged.
+
+- 68 further tests (116 → 184): the pinned default output, the Chat Completions
+  shape checked against the SDK's own types, `strict`'s position on each
+  surface, identical `parameters` and diagnostics across surfaces for all six
+  shared fixtures, transformation equality apart from the one wrapping entry,
+  refusal parity for both lossy and unresolvable tools, determinism, and mocked
+  Chat Completions probe outcomes. Still no network request anywhere.
+
 - **`openai/schema-nesting-near-limit`** — a new **warning** that fires when a
   schema's deepest nesting reaches 9 or 10 levels, within two levels of
   OpenAI's documented limit of 10, but does not exceed it. This brings the rule
