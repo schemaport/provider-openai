@@ -286,9 +286,20 @@ export async function probeOpenAI(
  * that prefer named functions while preserving the existing `probeOpenAI`
  * export for compatibility.
  */
-export async function probe(
+export function probe(
   tool: CanonicalTool,
+  options?: OpenAIProbeOptions,
+): Promise<ProbeResult>;
+export function probe(request: {
+  tool: CanonicalTool;
+  options?: OpenAIProbeOptions;
+}): Promise<ProbeResult>;
+export async function probe(
+  input: CanonicalTool | { tool: CanonicalTool; options?: OpenAIProbeOptions },
   options: OpenAIProbeOptions = {},
 ): Promise<ProbeResult> {
-  return probeOpenAI(tool, options);
+  if ("tool" in input) {
+    return probeOpenAI(input.tool, input.options ?? {});
+  }
+  return probeOpenAI(input, options);
 }
