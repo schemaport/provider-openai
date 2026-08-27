@@ -94,6 +94,7 @@ export type {
   OpenAIProbeClient,
   OpenAIProbeOptions,
   OpenAIResponsesProbeClient,
+  ProbeRequest,
 } from './probe.js';
 export { OPENAI_DOCS, RULES_REVIEWED_AT } from './docs.js';
 export {
