@@ -28,6 +28,11 @@ export const OPENAI_API_SURFACES: readonly OpenAIApiSurface[] = Object.freeze([
   'chat-completions',
 ]);
 
+/** Narrow an untrusted runtime value to one of the supported API surfaces. */
+export function isOpenAIApiSurface(value: unknown): value is OpenAIApiSurface {
+  return OPENAI_API_SURFACES.some((surface) => surface === value);
+}
+
 /**
  * `CompileOptions` plus the OpenAI-specific choice of output target.
  *
@@ -160,5 +165,12 @@ export function wrapForSurface(
 
 /** Read the surface out of caller options, defaulting to `responses`. */
 export function resolveApiSurface(options?: OpenAICompileOptions): OpenAIApiSurface {
-  return options?.apiSurface ?? DEFAULT_API_SURFACE;
+  const surface: unknown = options?.apiSurface ?? DEFAULT_API_SURFACE;
+  if (!isOpenAIApiSurface(surface)) {
+    // TypeScript callers cannot normally reach this branch, but JavaScript,
+    // parsed JSON and `any` can. Silently treating a typo as Responses would
+    // emit the wrong request envelope for the endpoint the caller intended.
+    throw new Error('Unsupported OpenAI API surface.');
+  }
+  return surface;
 }

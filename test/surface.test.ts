@@ -3,7 +3,11 @@ import type { CompileResult } from '@schemaport/core';
 import { FIXTURE_TOOLS, refundOrderTool } from '@schemaport/core';
 import type { ChatCompletionFunctionTool } from 'openai/resources/chat/completions';
 import type { FunctionTool } from 'openai/resources/responses/responses';
-import { compileOpenAI, openaiProvider } from '../src/index.js';
+import {
+  compileOpenAI,
+  isOpenAIApiSurface,
+  openaiProvider,
+} from '../src/index.js';
 import type { OpenAIChatCompletionsTool, OpenAIFunctionTool } from '../src/index.js';
 import { MAIN_RESPONSES_OUTPUT } from './fixtures/main-output.js';
 import { badNameTool, cleanTool, definitionsTool, rewriteTool, scalarRootTool } from './fixtures/tools.js';
@@ -111,6 +115,22 @@ describe('the chat-completions shape', () => {
       apiSurface: 'chat-completions',
     }).output as OpenAIChatCompletionsTool;
     expect('description' in output.function).toBe(false);
+  });
+});
+
+describe('runtime surface validation', () => {
+  it('narrows only the two documented surface names', () => {
+    expect(isOpenAIApiSurface('responses')).toBe(true);
+    expect(isOpenAIApiSurface('chat-completions')).toBe(true);
+    expect(isOpenAIApiSurface('assistants')).toBe(false);
+  });
+
+  it('rejects an untyped surface instead of silently emitting Responses', () => {
+    expect(() =>
+      compileOpenAI(cleanTool, {
+        apiSurface: 'assistants' as never,
+      }),
+    ).toThrow('Unsupported OpenAI API surface.');
   });
 });
 
