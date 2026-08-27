@@ -69,7 +69,9 @@ export { compileOpenAI } from './compile.js';
 export {
   CHAT_COMPLETIONS_WRAPPER_CODE,
   DEFAULT_API_SURFACE,
+  isOpenAIApiSurface,
   OPENAI_API_SURFACES,
+  resolveApiSurface,
   wrapForSurface,
 } from './surface.js';
 export type {
