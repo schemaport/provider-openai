@@ -199,6 +199,12 @@ export interface OpenAIProbeOptions extends ProbeOptions {
   apiSurface?: OpenAIApiSurface;
 }
 
+/** A serializable object-form request accepted by the package-level `probe` entrypoint. */
+export interface ProbeRequest {
+  tool: CanonicalTool;
+  options?: OpenAIProbeOptions;
+}
+
 /**
  * Ask OpenAI whether it accepts the compiled tool definition.
  *
@@ -290,12 +296,9 @@ export function probe(
   tool: CanonicalTool,
   options?: OpenAIProbeOptions,
 ): Promise<ProbeResult>;
-export function probe(request: {
-  tool: CanonicalTool;
-  options?: OpenAIProbeOptions;
-}): Promise<ProbeResult>;
+export function probe(request: ProbeRequest): Promise<ProbeResult>;
 export async function probe(
-  input: CanonicalTool | { tool: CanonicalTool; options?: OpenAIProbeOptions },
+  input: CanonicalTool | ProbeRequest,
   options: OpenAIProbeOptions = {},
 ): Promise<ProbeResult> {
   if ("tool" in input) {
