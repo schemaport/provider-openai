@@ -88,6 +88,7 @@ export {
   PROBE_MAX_OUTPUT_TOKENS,
   probe,
   probeOpenAI,
+  probeOpenAI as runOpenAIProbe,
 } from './probe.js';
 export type {
   OpenAIChatCompletionsProbeClient,
