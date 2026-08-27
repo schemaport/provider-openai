@@ -5,6 +5,7 @@ import {
   OPENAI_MODEL_ENV,
   PROBE_MAX_OUTPUT_TOKENS,
   openaiProvider,
+  probe,
   probeOpenAI,
 } from '../src/index.js';
 import type { OpenAIChatCompletionsProbeClient, OpenAIProbeClient } from '../src/index.js';
@@ -58,6 +59,15 @@ afterEach(() => {
 });
 
 describe('accepted', () => {
+  it('exposes the concise package-level probe entrypoint', async () => {
+    const { client, calls } = acceptingClient({ orderId: 'ord_alias', amount: null });
+    const result = await probe(refundOrderTool, { client });
+
+    expect(result.status).toBe('accepted');
+    expect(result.providerId).toBe('openai');
+    expect(calls).toHaveLength(1);
+  });
+
   it('reports acceptance and validates arguments against the canonical schema', async () => {
     const { client, calls } = acceptingClient({ orderId: 'ord_123', amount: 12.5 });
     const result = await probeOpenAI(refundOrderTool, { client });
