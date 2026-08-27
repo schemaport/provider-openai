@@ -9,6 +9,49 @@ lost; **fixes (lossy)** = compile produces usable output but a constraint is
 dropped, so `--allow-lossy` is required; **refuses** = compile cannot produce
 usable output at all.
 
+## What "stable code" guarantees
+
+The `code` on a diagnostic is this package's machine-readable interface. If you
+filter, suppress, or gate CI on findings, filter on the code.
+
+**Stable across releases:**
+
+- The code string itself. A code is never renamed. If a rule's meaning changes
+  enough that the old name would mislead, the old code is retired and a new one
+  is introduced rather than quietly redefined.
+- The `path`, which always points at the schema location the rule is about, and
+  is always built with `joinPath` so it can be matched or split reliably.
+
+**Not stable, and safe to change in any release:**
+
+- The `message`. It is written for a human reading terminal output and gets
+  reworded whenever a clearer phrasing turns up. Do not match on it.
+- The `docsUrl`. Providers move their documentation; the link follows.
+- The **set** of codes. New rules arrive in minor releases — that is how a
+  provider's changing requirements reach you. Treat an unrecognised
+  `openai/...` code as a finding you have not triaged yet, not as an error.
+
+**Changes with the rule, and is worth watching:**
+
+- `severity`, and the `compile` ability. A rule can move between `warning` and
+  `error`, or stop being lossy, when the evidence for it changes. Both are
+  recorded in `CHANGELOG.md` when they do, because a `--fail-on error` gate can
+  start or stop failing as a result.
+
+So this is the durable form of a CI filter:
+
+```bash
+schemaport check tools --targets openai --format json \
+  | jq '[.tools[].targets.openai.diagnostics[]
+         | select(.code == "openai/undocumented-constraint-keyword")]'
+```
+
+and this is the brittle form, which breaks on the next rewording:
+
+```bash
+schemaport check tools --targets openai | grep "could not confirm"
+```
+
 ## Tool identity
 
 | Code | Severity | Compile | Fires when |
