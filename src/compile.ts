@@ -1,10 +1,4 @@
-import type {
-  CanonicalTool,
-  CompileOptions,
-  CompileResult,
-  JsonSchema,
-  Transformation,
-} from '@schemaport/core';
+import type { CanonicalTool, CompileResult, JsonSchema, Transformation } from '@schemaport/core';
 import {
   asSchema,
   finalizeCompile,
@@ -15,30 +9,13 @@ import {
 import { checkOpenAI } from './check.js';
 import { classifyKeyword, OUTPUT_KEY_ORDER, SUPPORTED_FORMATS } from './keywords.js';
 import { isObjectSchema, PROVIDER_ID } from './rules.js';
-
-/**
- * The OpenAI-native tool definition SchemaPort emits.
- *
- * This is the Responses API `FunctionTool` shape, field for field, as declared
- * by `openai@7.5.0` in `resources/responses/responses.d.ts`:
- *
- * ```ts
- * interface FunctionTool {
- *   name: string;
- *   parameters: { [key: string]: unknown } | null;
- *   strict: boolean | null;
- *   type: 'function';
- *   description?: string | null;
- * }
- * ```
- */
-export interface OpenAIFunctionTool {
-  type: 'function';
-  name: string;
-  description?: string;
-  parameters: Record<string, unknown>;
-  strict: true;
-}
+import type { OpenAICompileOptions, OpenAICompiledTool } from './surface.js';
+import {
+  CHAT_COMPLETIONS_WRAPPER_CODE,
+  CHAT_COMPLETIONS_WRAPPER_DETAIL,
+  resolveApiSurface,
+  wrapForSurface,
+} from './surface.js';
 
 interface Context {
   transformations: Transformation[];
@@ -451,15 +428,25 @@ function stripMarker(out: Record<string, unknown>): Record<string, unknown> {
 /* -------------------------------------------------------------------------- */
 
 /**
- * Compile a canonical tool into an OpenAI Responses API `FunctionTool`.
+ * Compile a canonical tool into an OpenAI function tool.
  *
  * `strict: true` is always emitted. OpenAI's own guidance is "we recommend
  * always enabling strict mode"; without it, function calling is best-effort and
  * SchemaPort could not tell the caller which constraints are actually enforced.
  * The cost is that keywords outside OpenAI's supported subset must be dropped,
  * and every such drop is recorded as a lossy transformation.
+ *
+ * `options.apiSurface` picks the output target and defaults to `'responses'`.
+ * It changes **only the envelope**. Everything above this function — the whole
+ * of `transformSchema` and every rule behind `checkOpenAI` — runs once and is
+ * surface-independent, because OpenAI's strict-mode schema subset is a property
+ * of structured outputs, not of the endpoint. Choosing Chat Completions does
+ * not make a schema more or less lossy, and does not change which keywords
+ * survive. See `surface.ts`.
  */
-export function compileOpenAI(tool: CanonicalTool, options?: CompileOptions): CompileResult {
+export function compileOpenAI(tool: CanonicalTool, options?: OpenAICompileOptions): CompileResult {
+  const surface = resolveApiSurface(options);
+
   const ctx: Context = {
     transformations: [],
     rewriteDefinitionRefs:
@@ -481,15 +468,17 @@ export function compileOpenAI(tool: CanonicalTool, options?: CompileOptions): Co
     false,
   );
 
+  if (surface === 'chat-completions') {
+    record(ctx, CHAT_COMPLETIONS_WRAPPER_CODE, 'inputSchema', CHAT_COMPLETIONS_WRAPPER_DETAIL, false);
+  }
+
   const parameters = transformSchema(tool.inputSchema, 'inputSchema', ctx);
 
-  const output: OpenAIFunctionTool = {
-    type: 'function',
+  const output: OpenAICompiledTool = wrapForSurface(surface, {
     name: tool.name,
-    ...(tool.description !== undefined ? { description: tool.description } : {}),
+    description: tool.description,
     parameters,
-    strict: true,
-  };
+  });
 
   return finalizeCompile({
     providerId: PROVIDER_ID,
