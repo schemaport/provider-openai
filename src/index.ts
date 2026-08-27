@@ -86,6 +86,7 @@ export {
   OPENAI_API_KEY_ENV,
   OPENAI_MODEL_ENV,
   PROBE_MAX_OUTPUT_TOKENS,
+  probe,
   probeOpenAI,
 } from './probe.js';
 export type {
