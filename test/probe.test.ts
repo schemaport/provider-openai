@@ -68,6 +68,15 @@ describe('accepted', () => {
     expect(calls).toHaveLength(1);
   });
 
+  it('accepts the object-form probe request for configuration-driven callers', async () => {
+    const { client, calls } = acceptingClient({ orderId: 'ord_object', amount: null });
+    const result = await probe({ tool: refundOrderTool, options: { client } });
+
+    expect(result.status).toBe('accepted');
+    expect(result.providerId).toBe('openai');
+    expect(calls).toHaveLength(1);
+  });
+
   it('reports acceptance and validates arguments against the canonical schema', async () => {
     const { client, calls } = acceptingClient({ orderId: 'ord_123', amount: 12.5 });
     const result = await probeOpenAI(refundOrderTool, { client });
