@@ -278,3 +278,17 @@ export async function probeOpenAI(
     return probeError(base, kind, detail, model);
   }
 }
+
+/**
+ * Probe OpenAI through the package-level provider entrypoint.
+ *
+ * This concise alias mirrors the `openaiProvider.probe()` method for callers
+ * that prefer named functions while preserving the existing `probeOpenAI`
+ * export for compatibility.
+ */
+export async function probe(
+  tool: CanonicalTool,
+  options: OpenAIProbeOptions = {},
+): Promise<ProbeResult> {
+  return probeOpenAI(tool, options);
+}
