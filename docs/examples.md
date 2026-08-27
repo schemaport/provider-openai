@@ -94,7 +94,62 @@ the successful compile result. Exactly one diagnostic survives:
 That warning is the point. `refund_order` compiles cleanly, but your handler now
 has to treat `amount: null` as "no amount given".
 
-## 2. An open typed map — refused
+## 2. The same tool, compiled for Chat Completions
+
+```ts
+const result = openaiProvider.compile(refundOrderTool, {
+  apiSurface: 'chat-completions',
+});
+// result.ok === true, still no --allow-lossy needed
+```
+
+Output:
+
+```json
+{
+  "type": "function",
+  "function": {
+    "name": "refund_order",
+    "description": "Refunds all or part of an order",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "orderId": { "type": "string", "description": "The order to refund" },
+        "amount": {
+          "type": ["number", "null"],
+          "description": "Amount to refund. Omit to refund the full order.",
+          "minimum": 0
+        }
+      },
+      "required": ["orderId", "amount"],
+      "additionalProperties": false
+    },
+    "strict": true
+  }
+}
+```
+
+```ts
+await client.chat.completions.create({ model, messages, tools: [result.output] });
+```
+
+`parameters` is byte-for-byte the object from example 1. `strict` moved inside
+`function`, which is where the Chat Completions API looks for it. The
+transformations are the same four, plus one:
+
+| Code | Path | Lossy |
+|---|---|---|
+| `renamed-input-schema-to-parameters` | `inputSchema` | no |
+| `enabled-strict-mode` | `inputSchema` | no |
+| **`nested-under-function-key`** | `inputSchema` | no |
+| `converted-optional-property-to-nullable` | `inputSchema.properties.amount` | no |
+| `added-additional-properties-false` | `inputSchema.additionalProperties` | no |
+
+The diagnostics are identical too — the same single
+`openai/nullable-instead-of-omitted` warning. Your handler still has to treat
+`amount: null` as "no amount given"; nothing about the endpoint changes that.
+
+## 3. An open typed map — refused on both surfaces
 
 Canonical (`openMapTool`): `tags` is
 `{ "type": "object", "additionalProperties": { "type": "string" } }`.
@@ -117,7 +172,11 @@ expressed at all. With `{ allowLossy: true }` it compiles to a `tags` object
 that accepts no keys whatsoever — usually a sign the tool should take an array
 of `{ key, value }` pairs instead.
 
-## 3. Draft-07 `definitions` — rewritten, nothing lost
+Adding `apiSurface: 'chat-completions'` changes nothing here. The refusal, the
+diagnostic and the message are identical, because the constraint that cannot be
+expressed belongs to strict mode, not to the endpoint.
+
+## 4. Draft-07 `definitions` — rewritten, nothing lost
 
 ```json
 {
@@ -158,7 +217,7 @@ compiles to
 with `renamed-definitions-to-defs` and `rewrote-definitions-reference`, both
 `lossy: false`, plus an `openai/legacy-definitions-keyword` warning.
 
-## 4. Checking without compiling
+## 5. Checking without compiling
 
 ```ts
 import { openaiProvider } from '@schemaport/provider-openai';
@@ -174,12 +233,20 @@ for (const item of openaiProvider.check(tool)) {
 Diagnostics are sorted by severity, then path, then code, so the output is
 stable between runs.
 
-## 5. Probing
+## 6. Probing
 
 ```bash
 export OPENAI_API_KEY=sk-...
 schemaport probe --targets openai tools/refund_order.json
 ```
 
-See [probing.md](./probing.md) for the request that is sent, the default model
-and how every failure mode is classified.
+Programmatically, a probe follows whichever surface you name, so a Chat
+Completions user verifies the body they will actually send:
+
+```ts
+await openaiProvider.probe(refundOrderTool, { apiSurface: 'chat-completions' });
+// one POST /v1/chat/completions, carrying the nested tool above
+```
+
+See [probing.md](./probing.md) for the request that is sent on each surface, the
+default model and how every failure mode is classified.

@@ -3,16 +3,16 @@
  *
  * OpenAI compatibility checks, compilation and live probing for SchemaPort.
  *
- * Target surface: the **Responses API** `FunctionTool`
- * (`POST /v1/responses`, `tools[]`), compiled with `strict: true`. See
- * `docs/openai-support.md` for why, and for every rule and transformation.
+ * Default target surface: the **Responses API** `FunctionTool`
+ * (`POST /v1/responses`, `tools[]`), compiled with `strict: true`. Pass
+ * `{ apiSurface: 'chat-completions' }` to `compile()` or `probe()` for the
+ * `POST /v1/chat/completions` envelope instead. The schema rules are the same
+ * either way — see `docs/openai-support.md`.
  */
 import type {
   CanonicalTool,
-  CompileOptions,
   CompileResult,
   Diagnostic,
-  ProbeOptions,
   ProbeResult,
   SchemaPortProvider,
 } from '@schemaport/core';
@@ -20,9 +20,25 @@ import { checkOpenAI } from './check.js';
 import { compileOpenAI } from './compile.js';
 import { OPENAI_DOCS, RULES_REVIEWED_AT } from './docs.js';
 import { probeOpenAI, OPENAI_API_KEY_ENV } from './probe.js';
+import type { OpenAIProbeOptions } from './probe.js';
 import { PROVIDER_ID } from './rules.js';
+import type { OpenAICompileOptions } from './surface.js';
 
-export const openaiProvider: SchemaPortProvider = {
+/**
+ * `SchemaPortProvider`, widened only in the options each method accepts.
+ *
+ * `OpenAICompileOptions` and `OpenAIProbeOptions` add one optional field each
+ * to core's types, so a method taking them still accepts a plain
+ * `CompileOptions` / `ProbeOptions`. `openaiProvider` is therefore assignable
+ * to `SchemaPortProvider` — the annotation below is what proves it at build
+ * time — and `@schemaport/core` needs no change.
+ */
+export interface OpenAIProvider extends SchemaPortProvider {
+  compile(tool: CanonicalTool, options?: OpenAICompileOptions): CompileResult;
+  probe(tool: CanonicalTool, options?: OpenAIProbeOptions): Promise<ProbeResult>;
+}
+
+export const openaiProvider: OpenAIProvider = {
   id: PROVIDER_ID,
   displayName: 'OpenAI',
   rulesReviewedAt: RULES_REVIEWED_AT,
@@ -33,20 +49,36 @@ export const openaiProvider: SchemaPortProvider = {
     return checkOpenAI(tool);
   },
 
-  compile(tool: CanonicalTool, options?: CompileOptions): CompileResult {
+  compile(tool: CanonicalTool, options?: OpenAICompileOptions): CompileResult {
     return compileOpenAI(tool, options);
   },
 
-  probe(tool: CanonicalTool, options?: ProbeOptions): Promise<ProbeResult> {
+  probe(tool: CanonicalTool, options?: OpenAIProbeOptions): Promise<ProbeResult> {
     return probeOpenAI(tool, options);
   },
 };
+
+/** Compile-time proof that the widened provider still satisfies core's contract. */
+const _assignableToCore: SchemaPortProvider = openaiProvider;
+void _assignableToCore;
 
 export default openaiProvider;
 
 export { checkOpenAI } from './check.js';
 export { compileOpenAI } from './compile.js';
-export type { OpenAIFunctionTool } from './compile.js';
+export {
+  CHAT_COMPLETIONS_WRAPPER_CODE,
+  DEFAULT_API_SURFACE,
+  OPENAI_API_SURFACES,
+  wrapForSurface,
+} from './surface.js';
+export type {
+  OpenAIApiSurface,
+  OpenAIChatCompletionsTool,
+  OpenAICompileOptions,
+  OpenAICompiledTool,
+  OpenAIFunctionTool,
+} from './surface.js';
 export {
   DEFAULT_PROBE_MODEL,
   OPENAI_API_KEY_ENV,
@@ -54,7 +86,12 @@ export {
   PROBE_MAX_OUTPUT_TOKENS,
   probeOpenAI,
 } from './probe.js';
-export type { OpenAIProbeClient } from './probe.js';
+export type {
+  OpenAIChatCompletionsProbeClient,
+  OpenAIProbeClient,
+  OpenAIProbeOptions,
+  OpenAIResponsesProbeClient,
+} from './probe.js';
 export { OPENAI_DOCS, RULES_REVIEWED_AT } from './docs.js';
 export {
   ANNOTATION_KEYWORDS,
