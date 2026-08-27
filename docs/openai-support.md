@@ -7,10 +7,19 @@ listed at the bottom of this page, plus the type declarations shipped in
 `openai@7.5.0`. Nothing here comes from memory or third-party write-ups, and
 where the official docs are ambiguous this package says so instead of guessing.
 
-## The API surface this package targets
+## The API surfaces this package targets
 
-SchemaPort compiles to the **Responses API** function tool
-(`POST /v1/responses`, `tools[]`), with `strict: true`.
+SchemaPort compiles to either OpenAI function-tool envelope, always with
+`strict: true`. The surface is chosen per call with `apiSurface`, and defaults
+to `'responses'`.
+
+```ts
+compile(tool);                                    // Responses (default)
+compile(tool, { apiSurface: 'responses' });       // the same thing, explicitly
+compile(tool, { apiSurface: 'chat-completions' });
+```
+
+### Responses — `POST /v1/responses`, `tools[]`
 
 ```jsonc
 {
@@ -36,20 +45,91 @@ export interface FunctionTool {
 }
 ```
 
-### Why Responses, not Chat Completions
+### Chat Completions — `POST /v1/chat/completions`, `tools[]`
 
-- OpenAI's function-calling guide points new integrations at the Responses API.
-- Strict-mode defaults differ. The guide states that Responses requests
-  "will attempt to normalize your schema into strict mode when possible, and
-  will fall back to non-strict, best-effort function calling", while
-  "Chat Completions requests remain non-strict by default". SchemaPort emits
-  `strict: true` explicitly, so it does not rely on either default.
-- The two request bodies are **not interchangeable.** Chat Completions nests the
-  function under a `function` key (`ChatCompletionFunctionTool` in
-  `openai@7.5.0` is `{ type: 'function', function: FunctionDefinition }`),
-  whereas the Responses tool is flat. Pasting SchemaPort's output into
-  `chat.completions.create` without re-nesting it will fail. The `parameters`
-  schema itself is the same in both APIs, so only the wrapper differs.
+```jsonc
+{
+  "type": "function",
+  "function": {
+    "name": "refund_order",
+    "description": "Refunds all or part of an order",
+    "parameters": { "type": "object", "...": "..." },
+    "strict": true
+  }
+}
+```
+
+Declared by `openai@7.5.0` in `resources/chat/completions/completions.d.ts` and
+`resources/shared.d.ts`:
+
+```ts
+export interface ChatCompletionFunctionTool {
+  function: Shared.FunctionDefinition;
+  type: 'function';
+}
+
+export interface FunctionDefinition {
+  name: string;
+  description?: string;
+  parameters?: FunctionParameters;   // { [key: string]: unknown }
+  strict?: boolean | null;
+}
+```
+
+**Note where `strict` lives.** On the Responses tool it is a top-level sibling
+of `name` and `parameters`. On the Chat Completions tool it is *inside*
+`function`. This is the trap that makes the two bodies worth distinguishing in
+code rather than by hand.
+
+### Which surface to choose, and why
+
+Pick the one matching the endpoint you call. That is the whole decision — the
+schema does not change either way.
+
+| | Responses | Chat Completions |
+|---|---|---|
+| Endpoint | `POST /v1/responses` | `POST /v1/chat/completions` |
+| Envelope | flat | nested under `function` |
+| `strict` | top level | inside `function` |
+| Prompt field | `input` | `messages` |
+| Output cap | `max_output_tokens` | `max_completion_tokens` |
+| `tool_choice` | `{ type, name }` | `{ type, function: { name } }` |
+| Schema rules | identical | identical |
+
+- **New integrations: Responses.** OpenAI's function-calling guide points new
+  integrations there, and it is this package's default.
+- **Existing Chat Completions code: Chat Completions.** It remains widely used,
+  and reshaping SchemaPort's output by hand is exactly the manual step this
+  package exists to remove.
+- **Strict-mode defaults differ, and SchemaPort does not rely on either.** The
+  guide states that Responses requests "will attempt to normalize your schema
+  into strict mode when possible, and will fall back to non-strict, best-effort
+  function calling", while "Chat Completions requests remain non-strict by
+  default". SchemaPort emits `strict: true` explicitly on both.
+
+#### The two request bodies are still not interchangeable
+
+Nothing about the new option makes them so. Chat Completions nests the function
+under a `function` key whereas the Responses tool is flat, so pasting one into
+the other endpoint fails — and on Chat Completions a top-level `strict` is not
+the strict flag at all, so the more likely outcome than a clean error is a
+schema that silently goes unenforced. That is why `apiSurface` is a named
+choice rather than something inferred.
+
+#### What choosing a surface does not change
+
+The `parameters` schema is byte-identical between the two. Everything this
+package decides about a schema — which keywords survive, which drops are lossy,
+which diagnostics fire, whether compilation is refused — is a property of
+OpenAI's strict-mode structured-outputs subset, not of the endpoint. The schema
+pipeline runs once and only the final wrapping differs (`src/surface.ts`), so:
+
+- Choosing Chat Completions does not rescue a schema that Responses refused.
+- It does not preserve `minLength`, or any other dropped keyword.
+- It does not make anything more, or less, lossy.
+
+The only trace it leaves in a compile result, besides the shape of `output`, is
+one extra non-lossy transformation: `nested-under-function-key`.
 
 ### Why `strict: true`, always
 

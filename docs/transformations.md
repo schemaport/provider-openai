@@ -30,6 +30,7 @@ into the compile result.
 | `rewrote-definitions-reference` | `false` | Repoints a `#/definitions/...` `$ref` at `#/$defs/...`. |
 | `converted-nullable-to-type-union` | `false` | Replaces OpenAPI 3.0 `nullable: true` with `"null"` in the type union. |
 | `normalized-true-subschema` | `false` | Emits `{}` in place of a `true` subschema. `true` and `{}` accept exactly the same values. |
+| `nested-under-function-key` | `false` | Wraps `name`, `description`, `parameters` and `strict` in the `function` key the Chat Completions `tools[]` entry requires. Recorded **only** when `apiSurface: 'chat-completions'` — its presence is how the manifest says which surface was emitted, and its absence means the Responses tool, whose envelope the two entries above already describe. The schema is untouched, so nothing is lost. |
 
 ## Lossy
 
@@ -45,10 +46,19 @@ into the compile result.
 | `widened-false-subschema` | **`true`** | Emits `{}` in place of a `false` subschema. `false` accepts nothing and `{}` accepts everything, so this is the widest weakening SchemaPort can produce. Always refused without `allowLossy`. |
 | `widened-invalid-subschema` | **`true`** | Emits `{}` in place of a value that is not a schema at all. Treated exactly like `false` rather than being silently normalised. |
 
+## The output target does not change this table
+
+Every row above is a property of OpenAI's strict-mode schema subset, not of the
+endpoint. `apiSurface: 'chat-completions'` applies exactly the same
+transformations to `parameters`, classifies them identically, and refuses
+exactly the same schemas — the only difference is the extra
+`nested-under-function-key` row. Switching surfaces is never a way past a lossy
+refusal.
+
 ## Determinism
 
 Compiling the same canonical tool twice produces byte-identical output and the
-same transformation array in the same order. Compiled schema keys are written in
+same transformation array in the same order, on either surface. Compiled schema keys are written in
 a fixed order (`$ref`, `type`, `description`, `enum`, `pattern`, `format`,
 `multipleOf`, `minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum`,
 `minItems`, `maxItems`, `items`, `properties`, `required`,
