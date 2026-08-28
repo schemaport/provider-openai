@@ -6,7 +6,7 @@ import type { ProviderDocReference } from '@schemaport/core';
  *
  * Reviewed on the date exported as `RULES_REVIEWED_AT`.
  */
-export const RULES_REVIEWED_AT = '2026-08-20';
+export const RULES_REVIEWED_AT = '2026-08-29';
 
 /** Function calling guide: tool shape, strict mode, optional-field encoding. */
 export const DOC_FUNCTION_CALLING = 'https://developers.openai.com/api/docs/guides/function-calling';
