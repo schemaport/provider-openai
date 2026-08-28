@@ -10,6 +10,7 @@ executes your function and never sends real data.
 export OPENAI_API_KEY=sk-...          # required
 export SCHEMAPORT_OPENAI_MODEL=...    # optional, overrides the default model
 export SCHEMAPORT_OPENAI_TIMEOUT_MS=12000 # optional, overrides the 30s timeout
+export SCHEMAPORT_OPENAI_MAX_OUTPUT_TOKENS=2048 # optional, bounded to 1..16384
 ```
 
 ```bash
@@ -88,7 +89,8 @@ Exactly one request, to the endpoint matching `apiSurface`.
 - The output cap is 1024 tokens: enough that a reasoning model can still emit
   one forced tool call, small enough that a probe stays cheap. Chat Completions
   spells it `max_completion_tokens`; `max_tokens` is marked `@deprecated` in the
-  SDK types and is not used.
+  SDK types and is not used. `SCHEMAPORT_OPENAI_MAX_OUTPUT_TOKENS` can override
+  the cap with an integer from 1 through 16384; invalid values keep the default.
 - `timeoutMs` is passed to the SDK as the per-request `timeout`. When omitted,
   `SCHEMAPORT_OPENAI_TIMEOUT_MS` can override the bounded 30-second default.
   Invalid or non-positive environment values fall back to 30 seconds.

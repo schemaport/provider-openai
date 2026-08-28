@@ -4,6 +4,7 @@ import {
   DEFAULT_PROBE_MODEL,
   DEFAULT_PROBE_TIMEOUT_MS,
   OPENAI_MODEL_ENV,
+  OPENAI_MAX_OUTPUT_TOKENS_ENV,
   OPENAI_TIMEOUT_ENV,
   PROBE_MAX_OUTPUT_TOKENS,
   openaiProvider,
@@ -242,6 +243,22 @@ describe('model and request options', () => {
     const { client } = acceptingClient({ orderId: 'o', amount: null });
     const result = await probeOpenAI(refundOrderTool, { client });
     expect(result.model).toBe('from-env');
+  });
+
+  it('uses a bounded output-token environment override', async () => {
+    vi.stubEnv(OPENAI_MAX_OUTPUT_TOKENS_ENV, '2048');
+    const { client, calls } = acceptingClient({ orderId: 'o', amount: null });
+    await probeOpenAI(refundOrderTool, { client });
+
+    expect(calls[0]?.body['max_output_tokens']).toBe(2048);
+  });
+
+  it('falls back for an out-of-range output-token override', async () => {
+    vi.stubEnv(OPENAI_MAX_OUTPUT_TOKENS_ENV, '20000');
+    const { client, calls } = acceptingClient({ orderId: 'o', amount: null });
+    await probeOpenAI(refundOrderTool, { client });
+
+    expect(calls[0]?.body['max_output_tokens']).toBe(PROBE_MAX_OUTPUT_TOKENS);
   });
 
   it('passes timeoutMs through to the SDK request options', async () => {
