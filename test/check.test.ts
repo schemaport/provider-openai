@@ -474,7 +474,7 @@ describe('provider metadata', () => {
   it('exposes the required identity fields', () => {
     expect(openaiProvider.id).toBe('openai');
     expect(openaiProvider.displayName).toBe('OpenAI');
-    expect(openaiProvider.rulesReviewedAt).toBe('2026-08-20');
+    expect(openaiProvider.rulesReviewedAt).toBe('2026-08-29');
     expect(openaiProvider.apiKeyEnvVar).toBe('OPENAI_API_KEY');
     expect(openaiProvider.docs.length).toBeGreaterThan(0);
     for (const doc of openaiProvider.docs) {
