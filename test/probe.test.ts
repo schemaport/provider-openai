@@ -4,6 +4,7 @@ import {
   DEFAULT_PROBE_MODEL,
   DEFAULT_PROBE_TIMEOUT_MS,
   OPENAI_MODEL_ENV,
+  OPENAI_TIMEOUT_ENV,
   PROBE_MAX_OUTPUT_TOKENS,
   openaiProvider,
   probe,
@@ -247,6 +248,27 @@ describe('model and request options', () => {
     const { client, calls } = acceptingClient({ orderId: 'o', amount: null });
     await probeOpenAI(refundOrderTool, { client, timeoutMs: 5000 });
     expect(calls[0]?.options).toEqual({ timeout: 5000 });
+  });
+
+  it('uses the timeout environment override when no option is given', async () => {
+    vi.stubEnv(OPENAI_TIMEOUT_ENV, '12000');
+    const { client, calls } = acceptingClient({ orderId: 'o', amount: null });
+    await probeOpenAI(refundOrderTool, { client });
+    expect(calls[0]?.options).toEqual({ timeout: 12000 });
+  });
+
+  it('prefers timeoutMs over the environment override', async () => {
+    vi.stubEnv(OPENAI_TIMEOUT_ENV, '12000');
+    const { client, calls } = acceptingClient({ orderId: 'o', amount: null });
+    await probeOpenAI(refundOrderTool, { client, timeoutMs: 5000 });
+    expect(calls[0]?.options).toEqual({ timeout: 5000 });
+  });
+
+  it('falls back to the bounded default for an invalid timeout override', async () => {
+    vi.stubEnv(OPENAI_TIMEOUT_ENV, 'not-a-timeout');
+    const { client, calls } = acceptingClient({ orderId: 'o', amount: null });
+    await probeOpenAI(refundOrderTool, { client });
+    expect(calls[0]?.options).toEqual({ timeout: DEFAULT_PROBE_TIMEOUT_MS });
   });
 
   it('does not read the environment when a client is supplied', async () => {
