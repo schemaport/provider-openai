@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { nestedTool, refundOrderTool } from '@schemaport/core';
 import {
   DEFAULT_PROBE_MODEL,
+  DEFAULT_PROBE_TIMEOUT_MS,
   OPENAI_MODEL_ENV,
   PROBE_MAX_OUTPUT_TOKENS,
   openaiProvider,
@@ -222,6 +223,12 @@ describe('compile gate', () => {
 });
 
 describe('model and request options', () => {
+  it('uses a bounded default request timeout', async () => {
+    const { client, calls } = acceptingClient({ orderId: 'o', amount: null });
+    await probeOpenAI(refundOrderTool, { client });
+    expect(calls[0]?.options).toEqual({ timeout: DEFAULT_PROBE_TIMEOUT_MS });
+  });
+
   it('prefers options.model over the environment override', async () => {
     vi.stubEnv(OPENAI_MODEL_ENV, 'from-env');
     const { client } = acceptingClient({ orderId: 'o', amount: null });
@@ -305,6 +312,12 @@ function acceptingChatClient(args: unknown, toolName = refundOrderTool.name) {
 }
 
 describe('chat-completions probe', () => {
+  it('uses the same bounded default request timeout', async () => {
+    const { client, calls } = acceptingChatClient({ orderId: 'o', amount: null });
+    await probeOpenAI(refundOrderTool, { client, apiSurface: 'chat-completions' });
+    expect(calls[0]?.options).toEqual({ timeout: DEFAULT_PROBE_TIMEOUT_MS });
+  });
+
   it('reports acceptance and validates arguments against the canonical schema', async () => {
     const { client, calls } = acceptingChatClient({ orderId: 'ord_123', amount: 12.5 });
     const result = await probeOpenAI(refundOrderTool, { client, apiSurface: 'chat-completions' });

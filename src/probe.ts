@@ -41,6 +41,9 @@ export const DEFAULT_PROBE_MODEL = 'gpt-5.6-luna';
  */
 export const PROBE_MAX_OUTPUT_TOKENS = 1024;
 
+/** Default per-request timeout for live probes. */
+export const DEFAULT_PROBE_TIMEOUT_MS = 30_000;
+
 /** One `create` method, on either endpoint. */
 type CreateMethod = (
   body: Record<string, unknown>,
@@ -264,7 +267,7 @@ export async function probeOpenAI(
   try {
     const response = await create(
       probeRequestBody(surface, model, tool.name, probePrompt(tool), compiled.output),
-      options.timeoutMs !== undefined ? { timeout: options.timeoutMs } : undefined,
+      { timeout: options.timeoutMs ?? DEFAULT_PROBE_TIMEOUT_MS },
     );
 
     const { parsed, note } =

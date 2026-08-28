@@ -83,6 +83,7 @@ export type {
 } from './surface.js';
 export {
   DEFAULT_PROBE_MODEL,
+  DEFAULT_PROBE_TIMEOUT_MS,
   OPENAI_API_KEY_ENV,
   OPENAI_MODEL_ENV,
   PROBE_MAX_OUTPUT_TOKENS,

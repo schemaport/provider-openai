@@ -88,7 +88,8 @@ Exactly one request, to the endpoint matching `apiSurface`.
   one forced tool call, small enough that a probe stays cheap. Chat Completions
   spells it `max_completion_tokens`; `max_tokens` is marked `@deprecated` in the
   SDK types and is not used.
-- `timeoutMs` is passed to the SDK as the per-request `timeout`.
+- `timeoutMs` is passed to the SDK as the per-request `timeout`. When omitted,
+  probes use a bounded 30-second timeout instead of inheriting the SDK default.
 
 The tool sent is compiled **for the surface being probed**, so a Chat
 Completions probe verifies the exact body you would send yourself, nesting and
