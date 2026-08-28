@@ -51,7 +51,7 @@ function resolveProbeMaxOutputTokens(): number {
   const raw = process.env[OPENAI_MAX_OUTPUT_TOKENS_ENV];
   if (raw === undefined || !/^\d+$/.test(raw)) return PROBE_MAX_OUTPUT_TOKENS;
   const parsed = Number(raw);
-  return Number.isSafeInteger(parsed) && parsed > 0 && parsed <= 8_192
+  return Number.isSafeInteger(parsed) && parsed > 0 && parsed <= 16_384
     ? parsed
     : PROBE_MAX_OUTPUT_TOKENS;
 }

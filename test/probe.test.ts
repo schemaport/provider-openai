@@ -246,15 +246,15 @@ describe('model and request options', () => {
   });
 
   it('uses a bounded output-token environment override', async () => {
-    vi.stubEnv(OPENAI_MAX_OUTPUT_TOKENS_ENV, '2048');
+    vi.stubEnv(OPENAI_MAX_OUTPUT_TOKENS_ENV, '16384');
     const { client, calls } = acceptingClient({ orderId: 'o', amount: null });
     await probeOpenAI(refundOrderTool, { client });
 
-    expect(calls[0]?.body['max_output_tokens']).toBe(2048);
+    expect(calls[0]?.body['max_output_tokens']).toBe(16_384);
   });
 
   it('falls back for an out-of-range output-token override', async () => {
-    vi.stubEnv(OPENAI_MAX_OUTPUT_TOKENS_ENV, '20000');
+    vi.stubEnv(OPENAI_MAX_OUTPUT_TOKENS_ENV, '16385');
     const { client, calls } = acceptingClient({ orderId: 'o', amount: null });
     await probeOpenAI(refundOrderTool, { client });
 
