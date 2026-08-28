@@ -25,6 +25,9 @@ export const OPENAI_MODEL_ENV = 'SCHEMAPORT_OPENAI_MODEL';
 /** Environment variable that overrides the probe timeout in milliseconds. */
 export const OPENAI_TIMEOUT_ENV = 'SCHEMAPORT_OPENAI_TIMEOUT_MS';
 
+/** Environment variable that overrides the probe output-token ceiling. */
+export const OPENAI_MAX_OUTPUT_TOKENS_ENV = 'SCHEMAPORT_OPENAI_MAX_OUTPUT_TOKENS';
+
 /**
  * Default probe model.
  *
@@ -43,6 +46,15 @@ export const DEFAULT_PROBE_MODEL = 'gpt-5.6-luna';
  * still emit one forced tool call, small enough that a probe stays cheap.
  */
 export const PROBE_MAX_OUTPUT_TOKENS = 1024;
+
+function resolveProbeMaxOutputTokens(): number {
+  const raw = process.env[OPENAI_MAX_OUTPUT_TOKENS_ENV];
+  if (raw === undefined || !/^\d+$/.test(raw)) return PROBE_MAX_OUTPUT_TOKENS;
+  const parsed = Number(raw);
+  return Number.isSafeInteger(parsed) && parsed > 0 && parsed <= 16_384
+    ? parsed
+    : PROBE_MAX_OUTPUT_TOKENS;
+}
 
 /** Default per-request timeout for live probes. */
 export const DEFAULT_PROBE_TIMEOUT_MS = 30_000;
@@ -180,13 +192,14 @@ function probeRequestBody(
   prompt: string,
   compiledTool: unknown,
 ): Record<string, unknown> {
+  const maximumOutputTokens = resolveProbeMaxOutputTokens();
   if (surface === 'chat-completions') {
     return {
       model,
       messages: [{ role: 'user', content: prompt }],
       tools: [compiledTool],
       tool_choice: { type: 'function', function: { name: toolName } },
-      max_completion_tokens: PROBE_MAX_OUTPUT_TOKENS,
+      max_completion_tokens: maximumOutputTokens,
     };
   }
 
@@ -195,7 +208,7 @@ function probeRequestBody(
     input: prompt,
     tools: [compiledTool],
     tool_choice: { type: 'function', name: toolName },
-    max_output_tokens: PROBE_MAX_OUTPUT_TOKENS,
+    max_output_tokens: maximumOutputTokens,
   };
 }
 
