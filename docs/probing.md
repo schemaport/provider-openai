@@ -91,7 +91,7 @@ Exactly one request, to the endpoint matching `apiSurface`.
 - `timeoutMs` is passed to the SDK as the per-request `timeout`. When omitted,
   probes use a bounded 30-second timeout instead of inheriting the SDK default.
   `DEFAULT_PROBE_TIMEOUT_MS` is exported for wrappers and telemetry that need
-  to reflect the same default without duplicating it.
+  to reflect the same 30,000-millisecond default without duplicating it.
 
 The tool sent is compiled **for the surface being probed**, so a Chat
 Completions probe verifies the exact body you would send yourself, nesting and
