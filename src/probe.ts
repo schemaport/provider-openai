@@ -22,6 +22,9 @@ export const OPENAI_API_KEY_ENV = 'OPENAI_API_KEY';
 /** Environment variable that overrides the probe model. */
 export const OPENAI_MODEL_ENV = 'SCHEMAPORT_OPENAI_MODEL';
 
+/** Environment variable that overrides the probe timeout in milliseconds. */
+export const OPENAI_TIMEOUT_ENV = 'SCHEMAPORT_OPENAI_TIMEOUT_MS';
+
 /**
  * Default probe model.
  *
@@ -43,6 +46,14 @@ export const PROBE_MAX_OUTPUT_TOKENS = 1024;
 
 /** Default per-request timeout for live probes. */
 export const DEFAULT_PROBE_TIMEOUT_MS = 30_000;
+
+function resolveProbeTimeout(timeoutMs: number | undefined): number {
+  if (timeoutMs !== undefined) return timeoutMs;
+  const raw = process.env[OPENAI_TIMEOUT_ENV];
+  if (raw === undefined || !/^\d+$/.test(raw)) return DEFAULT_PROBE_TIMEOUT_MS;
+  const parsed = Number(raw);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : DEFAULT_PROBE_TIMEOUT_MS;
+}
 
 /** One `create` method, on either endpoint. */
 type CreateMethod = (
@@ -267,7 +278,7 @@ export async function probeOpenAI(
   try {
     const response = await create(
       probeRequestBody(surface, model, tool.name, probePrompt(tool), compiled.output),
-      { timeout: options.timeoutMs ?? DEFAULT_PROBE_TIMEOUT_MS },
+      { timeout: resolveProbeTimeout(options.timeoutMs) },
     );
 
     const { parsed, note } =
