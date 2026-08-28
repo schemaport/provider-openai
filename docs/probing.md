@@ -9,6 +9,7 @@ executes your function and never sends real data.
 ```bash
 export OPENAI_API_KEY=sk-...          # required
 export SCHEMAPORT_OPENAI_MODEL=...    # optional, overrides the default model
+export SCHEMAPORT_OPENAI_TIMEOUT_MS=12000 # optional, overrides the 30s timeout
 ```
 
 ```bash
@@ -89,7 +90,8 @@ Exactly one request, to the endpoint matching `apiSurface`.
   spells it `max_completion_tokens`; `max_tokens` is marked `@deprecated` in the
   SDK types and is not used.
 - `timeoutMs` is passed to the SDK as the per-request `timeout`. When omitted,
-  probes use a bounded 30-second timeout instead of inheriting the SDK default.
+  `SCHEMAPORT_OPENAI_TIMEOUT_MS` can override the bounded 30-second default.
+  Invalid or non-positive environment values fall back to 30 seconds.
   `DEFAULT_PROBE_TIMEOUT_MS` is exported for wrappers and telemetry that need
   to reflect the same 30,000-millisecond default without duplicating it.
 
