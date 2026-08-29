@@ -39,7 +39,7 @@ export const TOOL_NAME_PATTERN = /^[a-zA-Z0-9_-]+$/;
 export const MAX_TOTAL_PROPERTIES = 5000;
 
 /** "up to 10 levels of nesting" — structured outputs guide. */
-export const MAX_NESTING_DEPTH = 10;
+export const MAX_NESTING_DEPTH = 11;
 
 /**
  * Depth at which SchemaPort starts warning that a schema is close to
