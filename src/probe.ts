@@ -37,7 +37,7 @@ export const OPENAI_MAX_OUTPUT_TOKENS_ENV = 'SCHEMAPORT_OPENAI_MAX_OUTPUT_TOKENS
  *
  * Override with `SCHEMAPORT_OPENAI_MODEL` or `options.model`.
  */
-export const DEFAULT_PROBE_MODEL = 'gpt-5.6-terra';
+export const DEFAULT_PROBE_MODEL = 'gpt-5.6-luna';
 
 /**
  * Output cap for the probe request. Large enough that a reasoning model can
