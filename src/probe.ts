@@ -31,15 +31,13 @@ export const OPENAI_MAX_OUTPUT_TOKENS_ENV = 'SCHEMAPORT_OPENAI_MAX_OUTPUT_TOKENS
 /**
  * Default probe model.
  *
- * `gpt-5.6-luna` is the cheapest model on OpenAI's current pricing page that
- * lists `function_calling` and `structured_outputs` under supported features
- * ($0.20 / $1.20 per 1M tokens). `gpt-5-nano` is cheaper still, but OpenAI's
- * deprecation page schedules `gpt-5-nano-2025-08-07` for shutdown on
- * 2026-12-11 and names `gpt-5.6-luna` as its replacement.
+ * `gpt-5.6-terra` is the balanced default for live compatibility probes. It
+ * supports function calling and structured outputs while providing more
+ * reasoning headroom than the lowest-cost model.
  *
  * Override with `SCHEMAPORT_OPENAI_MODEL` or `options.model`.
  */
-export const DEFAULT_PROBE_MODEL = 'gpt-5.6-luna';
+export const DEFAULT_PROBE_MODEL = 'gpt-5.6-terra';
 
 /**
  * Output cap for the probe request. Large enough that a reasoning model can
