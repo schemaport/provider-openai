@@ -45,7 +45,7 @@ export const DEFAULT_PROBE_MODEL = 'gpt-5.6-luna';
  * Output cap for the probe request. Large enough that a reasoning model can
  * still emit one forced tool call, small enough that a probe stays cheap.
  */
-export const PROBE_MAX_OUTPUT_TOKENS = 1024;
+export const PROBE_MAX_OUTPUT_TOKENS = 1536;
 
 function resolveProbeMaxOutputTokens(): number {
   const raw = process.env[OPENAI_MAX_OUTPUT_TOKENS_ENV];
