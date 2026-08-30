@@ -177,7 +177,7 @@ object or collapsing a root union would change the tool's meaning.
 | Limit | Value | Diagnostic |
 |---|---|---|
 | Total object properties | 5000 | `openai/too-many-properties` |
-| Nesting depth | 10 levels | `openai/schema-too-deep`; `openai/schema-nesting-near-limit` warns at 9–10 |
+| Nesting depth | 11 levels | `openai/schema-too-deep`; `openai/schema-nesting-near-limit` warns at 10–11 |
 | Total enum values | 1000 | `openai/too-many-enum-values` |
 | String length of an enum with >250 values | 15,000 chars | `openai/large-enum-too-long` |
 | Total chars across property names, definition names and enum values | 120,000 | `openai/schema-too-large` |
