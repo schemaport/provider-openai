@@ -386,29 +386,32 @@ describe('boolean and non-schema subschemas', () => {
 
 describe('size limit rules', () => {
   it('openai/schema-too-deep', () => {
-    expect(codes(checkOpenAI(deeplyNestedTool(10)))).not.toContain('openai/schema-too-deep');
-    const hit = find(checkOpenAI(deeplyNestedTool(11)), 'openai/schema-too-deep');
+    expect(codes(checkOpenAI(deeplyNestedTool(MAX_NESTING_DEPTH)))).not.toContain(
+      'openai/schema-too-deep',
+    );
+    const hit = find(checkOpenAI(deeplyNestedTool(MAX_NESTING_DEPTH + 1)), 'openai/schema-too-deep');
     expect(hit.compile.supported).toBe(false);
   });
 
   describe('openai/schema-nesting-near-limit', () => {
     it('is silent two or more levels below the limit', () => {
-      // `deeplyNestedTool` is otherwise clean, so depth 8 reports nothing at all.
-      expect(codes(checkOpenAI(deeplyNestedTool(8)))).toEqual([]);
+      // `deeplyNestedTool` is otherwise clean, so this reports nothing at all.
+      expect(codes(checkOpenAI(deeplyNestedTool(NESTING_DEPTH_WARNING_THRESHOLD - 1)))).toEqual([]);
     });
 
-    it('fires at depth 9, one level below the limit', () => {
-      expect(codes(checkOpenAI(deeplyNestedTool(9)))).toEqual([
+    it('fires one level below the limit', () => {
+      const depth = MAX_NESTING_DEPTH - 1;
+      expect(codes(checkOpenAI(deeplyNestedTool(depth)))).toEqual([
         'openai/schema-nesting-near-limit',
       ]);
-      const hit = find(checkOpenAI(deeplyNestedTool(9)), 'openai/schema-nesting-near-limit');
+      const hit = find(checkOpenAI(deeplyNestedTool(depth)), 'openai/schema-nesting-near-limit');
       expect(hit.severity).toBe('warning');
       expect(hit.path).toBe('inputSchema');
-      expect(hit.message).toContain('9 levels deep');
+      expect(hit.message).toContain(`${String(depth)} levels deep`);
       expect(hit.message).toContain(String(MAX_NESTING_DEPTH));
     });
 
-    it('fires at depth 10, exactly on the limit', () => {
+    it('fires exactly on the limit', () => {
       expect(codes(checkOpenAI(deeplyNestedTool(MAX_NESTING_DEPTH)))).toEqual([
         'openai/schema-nesting-near-limit',
       ]);
@@ -416,12 +419,12 @@ describe('size limit rules', () => {
         checkOpenAI(deeplyNestedTool(MAX_NESTING_DEPTH)),
         'openai/schema-nesting-near-limit',
       );
-      expect(hit.message).toContain('10 levels deep');
+      expect(hit.message).toContain(`${String(MAX_NESTING_DEPTH)} levels deep`);
       expect(hit.message).toContain('no headroom left');
     });
 
     it('starts exactly at NESTING_DEPTH_WARNING_THRESHOLD', () => {
-      expect(NESTING_DEPTH_WARNING_THRESHOLD).toBe(9);
+      expect(NESTING_DEPTH_WARNING_THRESHOLD).toBe(MAX_NESTING_DEPTH - 1);
       expect(
         codes(checkOpenAI(deeplyNestedTool(NESTING_DEPTH_WARNING_THRESHOLD - 1))),
       ).not.toContain('openai/schema-nesting-near-limit');
@@ -431,8 +434,10 @@ describe('size limit rules', () => {
     });
 
     it('yields to openai/schema-too-deep over the limit: one finding, not two', () => {
-      expect(codes(checkOpenAI(deeplyNestedTool(11)))).toEqual(['openai/schema-too-deep']);
-      expect(codes(checkOpenAI(deeplyNestedTool(14)))).not.toContain(
+      expect(codes(checkOpenAI(deeplyNestedTool(MAX_NESTING_DEPTH + 1)))).toEqual([
+        'openai/schema-too-deep',
+      ]);
+      expect(codes(checkOpenAI(deeplyNestedTool(MAX_NESTING_DEPTH + 4)))).not.toContain(
         'openai/schema-nesting-near-limit',
       );
     });
@@ -444,7 +449,10 @@ describe('size limit rules', () => {
     });
 
     it('is advance warning only: nothing is lost and compilation still succeeds', () => {
-      const hit = find(checkOpenAI(deeplyNestedTool(9)), 'openai/schema-nesting-near-limit');
+      const hit = find(
+        checkOpenAI(deeplyNestedTool(MAX_NESTING_DEPTH - 1)),
+        'openai/schema-nesting-near-limit',
+      );
       expect(hit.compile.supported).toBe(true);
       expect(hit.compile.lossy).toBe(false);
     });
