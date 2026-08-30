@@ -52,6 +52,19 @@ export const MAX_NESTING_DEPTH = 11;
  */
 export const NESTING_DEPTH_WARNING_THRESHOLD = MAX_NESTING_DEPTH - 1;
 
+/**
+ * Fraction of a size limit at which SchemaPort warns that headroom is running
+ * out.
+ *
+ * The depth limit gets an absolute threshold because it is a small integer:
+ * one level from eleven is a meaningful amount of room. The count limits are in
+ * the thousands, where "one away" is not actionable and a proportion is.
+ *
+ * 90% is a judgement, not a documented figure. It is high enough that an
+ * ordinary schema never trips it and low enough to leave time to act.
+ */
+export const SIZE_WARNING_FRACTION = 0.9;
+
 /** "up to 1000 enum values across all properties" — structured outputs guide. */
 export const MAX_TOTAL_ENUM_VALUES = 1000;
 
@@ -687,11 +700,47 @@ export function checkBudget(tool: CanonicalTool): Diagnostic[] {
     );
   };
 
+  /**
+   * Warn when a budget is within {@link SIZE_WARNING_FRACTION} of its limit.
+   *
+   * Only reached from the `else` branch of each limit check: once a schema is
+   * over a limit the refusal is the whole story, and a second finding about
+   * the same number would be noise.
+   */
+  const nearLimit = (code: string, used: number, limit: number, stated: string): void => {
+    if (used <= limit * SIZE_WARNING_FRACTION) return;
+    const headroom = limit - used;
+    out.push(
+      make({
+        toolName: tool.name,
+        severity: 'warning',
+        code,
+        message:
+          `${stated} ` +
+          (headroom === 0
+            ? 'There is no headroom left: any addition will make OpenAI reject the tool.'
+            : `That leaves room for ${headroom} more; beyond that OpenAI will reject the tool.`),
+        path: 'inputSchema',
+        compile: compilable(
+          'Compiles unchanged. The schema is within the limit; this is advance warning only.',
+        ),
+        docsUrl: DOC_STRUCTURED_OUTPUTS,
+      }),
+    );
+  };
+
   if (budget.totalProperties > MAX_TOTAL_PROPERTIES) {
     refuse(
       'openai/too-many-properties',
       `Schema declares ${budget.totalProperties} properties; OpenAI allows at most ${MAX_TOTAL_PROPERTIES}.`,
       'inputSchema',
+    );
+  } else {
+    nearLimit(
+      'openai/property-count-near-limit',
+      budget.totalProperties,
+      MAX_TOTAL_PROPERTIES,
+      `Schema declares ${budget.totalProperties} properties; OpenAI allows at most ${MAX_TOTAL_PROPERTIES}.`,
     );
   }
   if (budget.maxDepth > MAX_NESTING_DEPTH) {
@@ -730,6 +779,13 @@ export function checkBudget(tool: CanonicalTool): Diagnostic[] {
       `Schema declares ${budget.totalEnumValues} enum values; OpenAI allows at most ${MAX_TOTAL_ENUM_VALUES} across all properties.`,
       'inputSchema',
     );
+  } else {
+    nearLimit(
+      'openai/enum-values-near-limit',
+      budget.totalEnumValues,
+      MAX_TOTAL_ENUM_VALUES,
+      `Schema declares ${budget.totalEnumValues} enum values; OpenAI allows at most ${MAX_TOTAL_ENUM_VALUES} across all properties.`,
+    );
   }
   for (const path of budget.oversizedEnumPaths) {
     refuse(
@@ -743,6 +799,13 @@ export function checkBudget(tool: CanonicalTool): Diagnostic[] {
       'openai/schema-too-large',
       `Property names, definition names and enum values total ${budget.totalStringLength} characters; OpenAI allows at most ${MAX_TOTAL_STRING_LENGTH}.`,
       'inputSchema',
+    );
+  } else {
+    nearLimit(
+      'openai/schema-size-near-limit',
+      budget.totalStringLength,
+      MAX_TOTAL_STRING_LENGTH,
+      `Property names, definition names and enum values total ${budget.totalStringLength} characters; OpenAI allows at most ${MAX_TOTAL_STRING_LENGTH}.`,
     );
   }
   return out;
