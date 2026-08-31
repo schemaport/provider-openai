@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { CompileResult, Transformation } from '@schemaport/core';
 import { isLossy, minimalTool, nestedTool, openMapTool, refundOrderTool } from '@schemaport/core';
-import { compileOpenAI, openaiProvider } from '../src/index.js';
+import {
+  compileOpenAI,
+  MAX_NESTING_DEPTH,
+  NESTING_DEPTH_WARNING_THRESHOLD,
+  openaiProvider,
+} from '../src/index.js';
 import {
   annotatedTool,
   closedObjectTool,
@@ -364,7 +369,7 @@ describe('boolean and non-schema subschemas', () => {
 
 describe('near-limit nesting depth', () => {
   it('compiles unchanged and carries the warning into the result', () => {
-    for (const depth of [9, 10]) {
+    for (const depth of [NESTING_DEPTH_WARNING_THRESHOLD, MAX_NESTING_DEPTH]) {
       const result = compileOpenAI(deeplyNestedTool(depth));
       expect(result.ok, `depth ${String(depth)}`).toBe(true);
       expect(isLossy(result)).toBe(false);
@@ -379,11 +384,11 @@ describe('near-limit nesting depth', () => {
   });
 
   it('does not change compile().ok either side of the warning band', () => {
-    expect(compileOpenAI(deeplyNestedTool(8)).ok).toBe(true);
-    expect(compileOpenAI(deeplyNestedTool(9)).ok).toBe(true);
-    expect(compileOpenAI(deeplyNestedTool(10)).ok).toBe(true);
+    expect(compileOpenAI(deeplyNestedTool(NESTING_DEPTH_WARNING_THRESHOLD - 1)).ok).toBe(true);
+    expect(compileOpenAI(deeplyNestedTool(NESTING_DEPTH_WARNING_THRESHOLD)).ok).toBe(true);
+    expect(compileOpenAI(deeplyNestedTool(MAX_NESTING_DEPTH)).ok).toBe(true);
     // Over the limit is still a refusal, and from the error, not the warning.
-    const tooDeep = compileOpenAI(deeplyNestedTool(11));
+    const tooDeep = compileOpenAI(deeplyNestedTool(MAX_NESTING_DEPTH + 1));
     expect(tooDeep.ok).toBe(false);
     expect(tooDeep.diagnostics.map((d) => d.code)).toEqual(['openai/schema-too-deep']);
   });
